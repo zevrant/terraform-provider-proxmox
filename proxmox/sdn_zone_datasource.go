@@ -24,7 +24,6 @@ func NewSdnZoneDatasource() datasource.DataSource {
 }
 
 func (d *sdnZoneDatasource) Metadata(ctx context.Context, request datasource.MetadataRequest, response *datasource.MetadataResponse) {
-	//TODO implement me
 	response.TypeName = request.ProviderTypeName + "_sdn_zone"
 }
 

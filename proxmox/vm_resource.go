@@ -53,7 +53,7 @@ func (r *vmResource) Metadata(_ context.Context, req resource.MetadataRequest, r
 func (r *vmResource) Schema(_ context.Context, _ resource.SchemaRequest, response *resource.SchemaResponse) {
 	response.Schema = schema.Schema{
 		Blocks: map[string]schema.Block{
-			"ip_configs": schema.ListNestedBlock{
+			"ip_config": schema.ListNestedBlock{
 				NestedObject: schema.NestedBlockObject{
 					Attributes: map[string]schema.Attribute{
 						"ip_address": schema.StringAttribute{
@@ -68,7 +68,7 @@ func (r *vmResource) Schema(_ context.Context, _ resource.SchemaRequest, respons
 					},
 				},
 			},
-			"disks": schema.ListNestedBlock{
+			"disk": schema.ListNestedBlock{
 				NestedObject: schema.NestedBlockObject{
 					Attributes: map[string]schema.Attribute{
 						"id": schema.Int64Attribute{
@@ -132,7 +132,7 @@ func (r *vmResource) Schema(_ context.Context, _ resource.SchemaRequest, respons
 					},
 				},
 			},
-			"network_interfaces": schema.ListNestedBlock{
+			"network_interface": schema.ListNestedBlock{
 				NestedObject: schema.NestedBlockObject{
 					Attributes: map[string]schema.Attribute{
 						"mac_address": schema.StringAttribute{

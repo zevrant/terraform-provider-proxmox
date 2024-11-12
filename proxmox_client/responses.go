@@ -54,14 +54,14 @@ type TaskCreationResponse struct {
 type NodeListResponse struct {
 	Data []struct {
 		Status         string  `json:"status"`
-		Maxmem         int64   `json:"maxmem"`
+		MaxMem         int64   `json:"maxmem"`
 		Level          string  `json:"level"`
 		Id             string  `json:"id"`
 		Type           string  `json:"type"`
-		Maxcpu         int     `json:"maxcpu"`
+		MaxCpu         int     `json:"maxcpu"`
 		Maxdisk        int64   `json:"maxdisk"`
 		Node           string  `json:"node"`
-		Uptime         int     `json:"uptime"`
+		Uptime         int64   `json:"uptime"`
 		Cpu            float64 `json:"cpu"`
 		Disk           int64   `json:"disk"`
 		Mem            int64   `json:"mem"`

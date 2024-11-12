@@ -30,6 +30,7 @@ func (p *proxmoxProvider) DataSources(_ context.Context) []func() datasource.Dat
 	return []func() datasource.DataSource{
 		NewVMDataSource,
 		NewSdnZoneDatasource,
+		NewNodeDataSource,
 	}
 }
 

@@ -29,14 +29,14 @@ type VmModel struct {
 	Cpu               types.String         `tfsdk:"cpu_type"`
 	CpuLimit          types.Int64          `tfsdk:"cpu_limit"`
 	Description       types.String         `tfsdk:"description"`
-	Disks             []VmDisk             `tfsdk:"disks"`
+	Disks             []VmDisk             `tfsdk:"disk"`
 	HostStartupOrder  types.Int64          `tfsdk:"host_startup_order"`
-	IpConfigurations  []VmIpConfig         `tfsdk:"ip_configs"`
+	IpConfigurations  []VmIpConfig         `tfsdk:"ip_config"`
 	Kvm               types.Bool           `tfsdk:"kvm"`
 	Memory            types.Int64          `tfsdk:"memory"`
 	Name              types.String         `tfsdk:"name"`
 	Nameserver        types.String         `tfsdk:"nameserver"`
-	NetworkInterfaces []VmNetworkInterface `tfsdk:"network_interfaces"`
+	NetworkInterfaces []VmNetworkInterface `tfsdk:"network_interface"`
 	NodeName          types.String         `tfsdk:"node_name"`
 	Numa              types.Bool           `tfsdk:"numa_active"`
 	OnBoot            types.Bool           `tfsdk:"start_on_boot"`
@@ -259,7 +259,7 @@ func mapIpConfigsFromQemuResponse(otherFields map[string]interface{}) []VmIpConf
 
 func createVmRequest(vmModel *VmModel, tfContext *context.Context, cloudInitEnabled bool, createNew bool) url.Values {
 	params := url.Values{}
-	params.Add("vmid", vmModel.VmId.String())
+	params.Add("vmid", vmModel.VmId.ValueString())
 	params.Add("name", vmModel.Name.ValueString())
 
 	tagsList := make([]types.String, 0, len(vmModel.Tags.Elements()))

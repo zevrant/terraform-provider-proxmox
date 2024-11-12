@@ -34,47 +34,47 @@ resource proxmox_vm test {
   host_startup_order = 1
   protection = false
   nameserver = "192.168.0.1"
-  ip_configs { #TODO: make singular
+  ip_config {
     ip_address = "10.0.0.222/24"
     gateway = "10.0.0.1"
     order = 0
   }
 
-  disks { #TODO: make singular
+  disk {
     bus_type = "scsi"
     storage_location = "exosDisks"
     size = "50G"
     order = 0
   }
 
-  disks {
+  disk {
     bus_type = "scsi"
     storage_location = "sataLarge"
     size = "1002G"
     order = 1
   }
 
-  disks {
+  disk {
     bus_type = "scsi"
     storage_location = "exosDisks"
     size = "1000G"
     order = 2
   }
 
-  disks {
+  disk {
     bus_type = "scsi"
     storage_location = "exosDisks"
     size = "2G"
     order = 3
   }
-  disks {
+  disk {
     bus_type = "scsi"
     storage_location = "exosDisks"
     size = "1G"
     order = 4
   }
 
-  network_interfaces { #TODO: make singular
+  network_interface {
     mac_address = "1a:2b:3c:4e:5f:60"
     bridge = "vmbr0"
     firewall = true

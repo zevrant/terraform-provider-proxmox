@@ -18,10 +18,14 @@ data proxmox_sdn_zone test {
   zone = "core"
 }
 
+data proxmox_node proxmox_01 {
+  name = "proxmox-01"
+}
+
 resource proxmox_sdn_zone test {
   zone = "tfTest2"
   type = "vxlan"
   peers = ["10.0.0.2"]
-  nodes = ["proxmox-01"]
+  nodes = [data.proxmox_node.proxmox_01.name]
   ipam = "pve"
 }

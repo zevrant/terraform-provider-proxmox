@@ -26,7 +26,6 @@ func NewVMDataSource() datasource.DataSource {
 }
 
 func (d *qemuDataSource) Metadata(ctx context.Context, request datasource.MetadataRequest, response *datasource.MetadataResponse) {
-	//TODO implement me
 	response.TypeName = request.ProviderTypeName + "_vm"
 }
 
@@ -104,7 +103,7 @@ func (d *qemuDataSource) Configure(_ context.Context, req datasource.ConfigureRe
 func (d *qemuDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {
 	resp.Schema = schema.Schema{
 		Blocks: map[string]schema.Block{
-			"ip_configs": schema.ListNestedBlock{
+			"ip_config": schema.ListNestedBlock{
 				NestedObject: schema.NestedBlockObject{
 					Attributes: map[string]schema.Attribute{
 						"ip_address": schema.StringAttribute{
@@ -119,7 +118,7 @@ func (d *qemuDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, r
 					},
 				},
 			},
-			"disks": schema.ListNestedBlock{
+			"disk": schema.ListNestedBlock{
 				NestedObject: schema.NestedBlockObject{
 					Attributes: map[string]schema.Attribute{
 						"id": schema.Int64Attribute{
@@ -162,7 +161,7 @@ func (d *qemuDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, r
 					},
 				},
 			},
-			"network_interfaces": schema.ListNestedBlock{
+			"network_interface": schema.ListNestedBlock{
 				NestedObject: schema.NestedBlockObject{
 					Attributes: map[string]schema.Attribute{
 						"mac_address": schema.StringAttribute{
