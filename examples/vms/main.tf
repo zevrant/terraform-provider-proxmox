@@ -45,6 +45,10 @@ resource proxmox_vm test {
     storage_location = "exosDisks"
     size = "50G"
     order = 0
+    import_from = "local"
+    //Must be preloaded at this location, full path is /var/lib/vz/images/0/AlmaLinux-9-GenericCloud-latest.x86_64.qcow2
+    //Long term recommendation is to use an nfs mount or something that supports RWM
+    import_path = "0/AlmaLinux-9-GenericCloud-latest.x86_64.qcow2"
   }
 
   disk {

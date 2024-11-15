@@ -72,6 +72,8 @@ type VmDisk struct {
 	Backup          types.Bool   `tfsdk:"backup_enabled"`
 	Discard         types.Bool   `tfsdk:"discard_enabled"`
 	Order           types.Int64  `tfsdk:"order"`
+	ImportFrom      types.String `tfsdk:"import_from"`
+	Path            types.String `tfsdk:"import_path"`
 }
 
 type VmIpConfig struct {
@@ -120,7 +122,7 @@ func updateVmModelFromResponse(vmModel *VmModel, response proxmox_client.QemuRes
 	} else {
 		vmModel.Bios = types.StringValue(response.Data.Bios)
 	}
-	vmModel.Disks = mapDisksFromQemuResponse(response.Data.OtherFields)
+	vmModel.Disks = updateDisksFromQemuResponse(response.Data.OtherFields, vmModel)
 	vmModel.NetworkInterfaces = mapNetworkInterfacesFromQemuResponse(response.Data.OtherFields)
 	vmModel.IpConfigurations = mapIpConfigsFromQemuResponse(response.Data.OtherFields)
 }
@@ -140,16 +142,16 @@ func mapKeyValuePairsToMap(pairs []string) map[string]string {
 	return mappedPairs
 }
 
-func mapDisksFromQemuResponse(otherFields map[string]interface{}) []VmDisk {
-	var vmDisks []VmDisk
-	var keySlice []string = getDiskKeysFromJsonDict(otherFields)
+func updateDisksFromQemuResponse(otherFields map[string]interface{}, vmModel *VmModel) []VmDisk {
+	var keySlice = getDiskKeysFromJsonDict(otherFields)
+	var disks []VmDisk
 
 	for order, key := range keySlice {
 		disk := otherFields[key].(string)
 		diskParts := strings.Split(disk, ",")
 		diskFieldMap := mapKeyValuePairsToMap(diskParts[1:])
 		cache := diskFieldMap["cache"]
-
+		storageLocation := strings.Split(diskParts[0], ":")[0]
 		if cache == "" {
 			cache = "default"
 		}
@@ -158,28 +160,34 @@ func mapDisksFromQemuResponse(otherFields map[string]interface{}) []VmDisk {
 		if strings.Contains(diskParts[0], "cloudinit") {
 			continue
 		}
-		newVmDisk := VmDisk{
-			Id:              types.Int64Value(diskNumber),
-			BusType:         types.StringValue(key[:len("scsi")]),
-			StorageLocation: types.StringValue(strings.Split(diskParts[0], ":")[0]),
-			IoThread:        types.BoolValue(diskFieldMap["iothread"] == "1"),
-			Size:            types.StringValue(diskFieldMap["size"]),
-			Cache:           types.StringValue(cache),
-			AsyncIo:         types.StringValue(diskFieldMap["aio"]),
-			Replicate:       types.BoolValue(diskFieldMap["replicate"] == ""),
-			ReadOnly:        types.BoolValue(diskFieldMap["ro"] == "1"),
-			SsdEmulation:    types.BoolValue(diskFieldMap["ssd"] == "1"),
-			Backup:          types.BoolValue(diskFieldMap["backup"] == ""),
-			Discard:         types.BoolValue(diskFieldMap["discard"] == "on"),
-			Order:           types.Int64Value(int64(order)),
-		}
+		for _, plannedDisk := range vmModel.Disks {
+			if plannedDisk.BusType.ValueString() == key[:len("scsi")] && plannedDisk.Order.ValueInt64() == int64(order) && plannedDisk.StorageLocation.ValueString() == storageLocation {
+				newVmDisk := VmDisk{
+					Id:              types.Int64Value(diskNumber),
+					BusType:         types.StringValue(key[:len("scsi")]),
+					StorageLocation: types.StringValue(storageLocation),
+					IoThread:        types.BoolValue(diskFieldMap["iothread"] == "1"),
+					Size:            types.StringValue(diskFieldMap["size"]),
+					Cache:           types.StringValue(cache),
+					AsyncIo:         types.StringValue(diskFieldMap["aio"]),
+					Replicate:       types.BoolValue(diskFieldMap["replicate"] == ""),
+					ReadOnly:        types.BoolValue(diskFieldMap["ro"] == "1"),
+					SsdEmulation:    types.BoolValue(diskFieldMap["ssd"] == "1"),
+					Backup:          types.BoolValue(diskFieldMap["backup"] == ""),
+					Discard:         types.BoolValue(diskFieldMap["discard"] == "on"),
+					Order:           types.Int64Value(int64(order)),
+					ImportFrom:      plannedDisk.ImportFrom,
+					Path:            plannedDisk.Path,
+				}
 
-		if newVmDisk.AsyncIo.ValueString() == "" {
-			newVmDisk.AsyncIo = types.StringValue("default")
+				if newVmDisk.AsyncIo.ValueString() == "" {
+					newVmDisk.AsyncIo = types.StringValue("default")
+				}
+				disks = append(disks, newVmDisk)
+			}
 		}
-		vmDisks = append(vmDisks, newVmDisk)
 	}
-	return vmDisks
+	return disks
 }
 
 func mapNetworkInterfacesFromQemuResponse(otherFields map[string]interface{}) []VmNetworkInterface {
@@ -328,10 +336,13 @@ func attachVmDiskRequests(disks []VmDisk, params *url.Values, vmId string, cloud
 	for _, disk := range disks {
 		//local-zfs:vm-140-disk-0,aio=io_uring,backup=0,cache=directsync,discard=on,iothread=1,replicate=0,ro=1,size=32G,ssd=1
 		var diskString string
-		if createNew {
+		if createNew && disk.ImportFrom.ValueString() == "" {
 			diskString = fmt.Sprintf("%s:%s,size=%s", disk.StorageLocation.ValueString(), disk.Size.ValueString()[:len(disk.Size.ValueString())-1], disk.Size.ValueString())
-		} else {
+		} else if disk.ImportFrom.ValueString() == "" {
 			diskString = fmt.Sprintf("%s:vm-%s-disk-%d,size=%s", disk.StorageLocation.ValueString(), vmId, disk.Id.ValueInt64(), disk.Size.ValueString())
+		} else if createNew && disk.ImportFrom.ValueString() != "" {
+			//size is ignored so we don't include it here
+			diskString = fmt.Sprintf("%s:0,import-from=%s:%s", disk.StorageLocation.ValueString(), disk.ImportFrom.ValueString(), disk.Path.ValueString())
 		}
 
 		if disk.AsyncIo.ValueString() != "default" {

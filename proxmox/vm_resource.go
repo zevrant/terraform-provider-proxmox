@@ -2,7 +2,6 @@ package proxmox
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -129,6 +128,16 @@ func (r *vmResource) Schema(_ context.Context, _ resource.SchemaRequest, respons
 							Default:  booldefault.StaticBool(false),
 						},
 						"order": schema.Int64Attribute{Required: true},
+						"import_from": schema.StringAttribute{
+							Optional: true,
+							Computed: true,
+							Default:  stringdefault.StaticString(""),
+						},
+						"import_path": schema.StringAttribute{
+							Optional: true,
+							Computed: true,
+							Default:  stringdefault.StaticString(""),
+						},
 					},
 				},
 			},
@@ -296,6 +305,30 @@ func (r *vmResource) Create(ctx context.Context, request resource.CreateRequest,
 		return
 	}
 
+	for _, disk := range plan.Disks {
+		tflog.Info(ctx, fmt.Sprintf("Import from is %s", disk.ImportFrom.ValueString()))
+		if disk.ImportFrom.ValueString() != "" {
+			tflog.Info(ctx, "Resizing imported disk")
+			params := url.Values{}
+			params.Add("disk", fmt.Sprintf("%s%d", disk.BusType.ValueString(), disk.Order.ValueInt64()))
+			params.Add("size", disk.Size.ValueString())
+
+			taskResponse, resizeDiskError := r.client.ResizeVmDisk(params, plan.NodeName.ValueString(), plan.VmId.ValueString())
+
+			if resizeDiskError != nil {
+				response.Diagnostics.AddError("Failed to resize imported disk", resizeDiskError.Error())
+				return
+			}
+
+			taskCompletionError = waitForTaskCompletion(plan.NodeName.ValueString(), *taskResponse, r.client)
+
+			if taskCompletionError != nil {
+				response.Diagnostics.AddError("Failed to wait for resize task completion", taskCompletionError.Error())
+				return
+			}
+		}
+	}
+
 	vmResponse, searchVmError := r.client.GetVmById(plan.NodeName.ValueString(), plan.VmId.ValueString())
 
 	if searchVmError != nil {
@@ -303,23 +336,7 @@ func (r *vmResource) Create(ctx context.Context, request resource.CreateRequest,
 		return
 	}
 
-	qemuBytes, marshalQemuJsonError := json.Marshal(*vmResponse)
-
-	if marshalQemuJsonError != nil {
-		response.Diagnostics.AddError("Failed to marshal qemu response", marshalQemuJsonError.Error())
-	}
-
-	tflog.Debug(ctx, "qemu response "+string(qemuBytes))
-
 	updateVmModelFromResponse(plan, *vmResponse, &ctx)
-
-	jsonBytes, marshalJsonError := json.Marshal(plan)
-
-	if marshalJsonError != nil {
-		response.Diagnostics.AddError("Failed to marshal plan", marshalJsonError.Error())
-	}
-
-	tflog.Debug(ctx, "resulting plan "+string(jsonBytes))
 
 	diags = response.State.Set(ctx, &plan)
 	response.Diagnostics.Append(diags...)
@@ -409,7 +426,7 @@ func (r *vmResource) Update(ctx context.Context, request resource.UpdateRequest,
 
 	qemuVmCreationRequest := createVmRequest(plan, &ctx, false, false)
 
-	disks := mapDisksFromQemuResponse(vmResponse.Data.OtherFields)
+	var disks = updateDisksFromQemuResponse(vmResponse.Data.OtherFields, plan)
 
 	diskChangeMapping := mapPlannedDisksToExisting(plan.Disks, disks)
 

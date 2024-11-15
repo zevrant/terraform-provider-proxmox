@@ -141,8 +141,8 @@ func (c *Client) DeleteVmById(nodeName string, vmId string) (*string, error) {
 }
 
 func (c *Client) ResizeVmDisk(diskResizeRequest url.Values, nodeName string, vmId string) (*string, error) {
-
-	request, requestCreationError := http.NewRequest(http.MethodPut, fmt.Sprintf("%s/nodes/%s/qemu/%d/resize", c.HostURL, nodeName, vmId), bytes.NewBufferString(diskResizeRequest.Encode()))
+	tflog.Debug(c.Context, diskResizeRequest.Encode())
+	request, requestCreationError := http.NewRequest(http.MethodPut, fmt.Sprintf("%s/nodes/%s/qemu/%s/resize", c.HostURL, nodeName, vmId), bytes.NewBufferString(diskResizeRequest.Encode()))
 
 	if requestCreationError != nil {
 		return nil, requestCreationError

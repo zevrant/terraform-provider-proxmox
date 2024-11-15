@@ -157,7 +157,9 @@ func (d *qemuDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, r
 						"discard_enabled": schema.BoolAttribute{
 							Computed: true,
 						},
-						"order": schema.Int64Attribute{Computed: true},
+						"order":       schema.Int64Attribute{Computed: true},
+						"import_from": schema.StringAttribute{Computed: true},
+						"import_path": schema.StringAttribute{Computed: true},
 					},
 				},
 			},
