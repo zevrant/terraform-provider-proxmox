@@ -25,7 +25,7 @@ data proxmox_node proxmox_01 {
 resource proxmox_sdn_zone test {
   zone = "tfTest2"
   type = "vxlan"
-  peers = ["10.0.0.2"]
+  peers = [data.proxmox_node.proxmox_01.network_address]
   nodes = [data.proxmox_node.proxmox_01.name]
   ipam = "pve"
 }

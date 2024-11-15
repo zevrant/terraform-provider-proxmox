@@ -30,6 +30,7 @@ type NodeModel struct {
 	Memory         types.Int64   `tfsdk:"memory"`
 	SslFingerprint types.String  `tfsdk:"ssl_fingerprint"`
 	Uptime         types.Int64   `tfsdk:"uptime"`
+	NetworkAddress types.String  `tfsdk:"network_address"`
 }
 
 func NewNodeDataSource() datasource.DataSource {
@@ -79,6 +80,23 @@ func (d *nodeDataSource) Read(ctx context.Context, request datasource.ReadReques
 		return
 	}
 
+	networkConfig, getNetworkConfigError := d.client.GetNodeNetworkConfig(plan.Name.ValueString())
+
+	if getNetworkConfigError != nil {
+		response.Diagnostics.AddError("Failed to retrieve networkconfig for node", getNetworkConfigError.Error())
+		return
+	}
+
+	var enabledInterfaces []string
+
+	for _, netConfig := range networkConfig.Data {
+		if netConfig.Address != "" {
+			enabledInterfaces = append(enabledInterfaces, netConfig.Address)
+		}
+	}
+
+	plan.NetworkAddress = types.StringValue(enabledInterfaces[0])
+
 	diags = response.State.Set(ctx, plan)
 	response.Diagnostics.Append(diags...)
 	if response.Diagnostics.HasError() {
@@ -109,6 +127,7 @@ func (d *nodeDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, r
 			"memory":          schema.Int64Attribute{Computed: true},
 			"ssl_fingerprint": schema.StringAttribute{Computed: true},
 			"uptime":          schema.Int64Attribute{Computed: true},
+			"network_address": schema.StringAttribute{Computed: true},
 		},
 	}
 }
