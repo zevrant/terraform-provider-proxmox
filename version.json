@@ -2,7 +2,7 @@
   "data": {
     "type": "registry-provider-versions",
     "attributes": {
-      "version": "0.0.1",
+      "version": "0.0.2",
       "key-id": "0CFB08076C3770BF",
       "protocols": ["5.0"]
     }
