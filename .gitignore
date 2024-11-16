@@ -27,3 +27,7 @@ go.work.sum
 terraform-provider-proxmox
 terraform.tfstate
 terraform.tfstate.backup
+/.idea/.gitignore
+/.idea/modules.xml
+/.idea/terraform-provider-proxmox.iml
+/.idea/vcs.xml
