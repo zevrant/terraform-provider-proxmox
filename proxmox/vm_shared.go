@@ -48,6 +48,7 @@ type VmModel struct {
 	Tags              types.List           `tfsdk:"tags"`
 	VmGenId           types.String         `tfsdk:"vmgenid"`
 	VmId              types.String         `tfsdk:"vm_id"`
+	DefaultUser       types.String         `tfsdk:"default_user"`
 }
 
 type VmNetworkInterface struct {
@@ -112,9 +113,10 @@ func updateVmModelFromResponse(vmModel *VmModel, response proxmox_client.QemuRes
 	vmModel.Nameserver = types.StringValue(response.Data.Nameserver)
 	vmModel.CloudInitUpgrade = types.BoolValue(response.Data.CloudInitUpgrade == 1)
 	vmModel.Protection = types.BoolValue(response.Data.Protection != 0)
-	//vmModel.SshKeys = TODO: finish implementation
+	unescapedSshKeys, _ := url.PathUnescape(response.Data.SshKeys)
+	vmModel.SshKeys, _ = types.ListValueFrom(*tfContext, types.StringType, strings.Split(unescapedSshKeys, "\\n"))
 	startupOrder, _ := strconv.ParseInt(strings.Replace(response.Data.HostStartupOrder, "order=", "", 1), 10, 64)
-
+	vmModel.DefaultUser = types.StringValue(response.Data.CiUser)
 	vmModel.HostStartupOrder = types.Int64Value(startupOrder)
 	vmModel.AutoStart = types.BoolValue(response.Data.AutoStart == 1)
 	if response.Data.Bios == "" {
@@ -294,9 +296,14 @@ func createVmRequest(vmModel *VmModel, tfContext *context.Context, cloudInitEnab
 
 	sshKeys := ""
 	keysList := make([]types.String, 0, len(vmModel.SshKeys.Elements()))
+	_ = vmModel.SshKeys.ElementsAs(*tfContext, &keysList, false)
 
 	for _, key := range keysList {
-		sshKeys += fmt.Sprintf("\n%s", key)
+		if sshKeys == "" {
+			sshKeys = key.ValueString()
+		} else {
+			sshKeys += fmt.Sprintf("\n%s", key.ValueString())
+		}
 	}
 
 	params.Add("acpi", mapBoolToProxmoxString(vmModel.Acpi.ValueBool()))
@@ -318,13 +325,17 @@ func createVmRequest(vmModel *VmModel, tfContext *context.Context, cloudInitEnab
 	params.Add("scsihw", vmModel.ScsiHw.ValueString())
 	params.Add("sockets", vmModel.Sockets.String())
 	if sshKeys != "" {
-		params.Add("sshkeys", sshKeys)
+		params.Add("sshkeys", strings.ReplaceAll(strings.ReplaceAll(url.PathEscape(sshKeys), "+", "%2B"), "=", "%3D"))
 	}
 	params.Add("cores", vmModel.Cores.String())
 	params.Add("tags", tags)
 	params.Add("startup", fmt.Sprintf("order=%d", vmModel.HostStartupOrder.ValueInt64()))
 	params.Add("protection", mapBoolToProxmoxString(vmModel.Protection.ValueBool()))
 	params.Add("ostype", vmModel.OsType.ValueString())
+	if vmModel.DefaultUser.ValueString() != "" {
+		params.Add("ciuser", vmModel.DefaultUser.ValueString())
+	}
+
 	if createNew {
 		attachVmDiskRequests(vmModel.Disks, &params, vmModel.VmId.ValueString(), cloudInitEnabled, createNew)
 	}
@@ -342,6 +353,7 @@ func attachVmDiskRequests(disks []VmDisk, params *url.Values, vmId string, cloud
 			diskString = fmt.Sprintf("%s:vm-%s-disk-%d,size=%s", disk.StorageLocation.ValueString(), vmId, disk.Id.ValueInt64(), disk.Size.ValueString())
 		} else if createNew && disk.ImportFrom.ValueString() != "" {
 			//size is ignored so we don't include it here
+			//for information on why it's this way see https://www.reddit.com/r/Proxmox/comments/y51x5h/comment/jujh7zi/?utm_source=share&utm_medium=web3x&utm_name=web3xcss&utm_term=1&utm_content=share_button
 			diskString = fmt.Sprintf("%s:0,import-from=%s:%s", disk.StorageLocation.ValueString(), disk.ImportFrom.ValueString(), disk.Path.ValueString())
 		}
 

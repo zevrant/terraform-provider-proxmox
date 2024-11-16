@@ -261,6 +261,7 @@ func (d *qemuDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, r
 			"protection": schema.BoolAttribute{
 				Computed: true,
 			},
+			"default_user": schema.StringAttribute{Computed: true},
 		},
 	}
 }

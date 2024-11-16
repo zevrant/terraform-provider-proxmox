@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"net/url"
@@ -268,11 +269,19 @@ func (r *vmResource) Schema(_ context.Context, _ resource.SchemaRequest, respons
 			"ssh_keys": schema.ListAttribute{
 				Optional:    true,
 				ElementType: types.StringType,
+				Validators: []validator.List{
+					sshKeyListValidator{},
+				},
 			},
 			"protection": schema.BoolAttribute{
 				Optional: true,
 				Computed: true,
 				Default:  booldefault.StaticBool(false),
+			},
+			"default_user": schema.StringAttribute{
+				Optional: true,
+				Computed: true,
+				Default:  stringdefault.StaticString(""),
 			},
 		},
 	}

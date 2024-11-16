@@ -27,6 +27,7 @@ type QemuResponse struct { //some of the optional fields in the spec will not ap
 		CloudInitUpgrade int                    `json:"ciupgrade"`
 		Protection       int                    `json:"protection"`
 		SshKeys          string                 `json:"sshKeys"`
+		CiUser           string                 `json:"ciuser"`
 		OtherFields      map[string]interface{} `json:"-"` //skip this key
 	} `json:"data"`
 }

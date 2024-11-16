@@ -1,7 +1,7 @@
 terraform {
   required_providers {
     proxmox = {
-      source = "app.terraform.io/zevrant-services/proxmox"
+      source = "app.terraform.io/zevrant-services-dev/proxmox"
     }
   }
 
@@ -33,7 +33,11 @@ resource proxmox_vm test {
   auto_start = false
   host_startup_order = 1
   protection = false
-  nameserver = "192.168.0.1"
+  nameserver = "1.1.1.1"
+  default_user = "zevrant"
+  ssh_keys = [
+    "ecdsa-sha2-nistp384 AAAAE2VjZHNhLXNoYTItbmlzdHAzODQAAAAIbmlzdHAzODQAAABhBLtOxtriPtNmisKkmfHfCByaTYCHRsDHyzQAi0yL6LUeKybjYExfR6N0xBMcIj6M/b5U3aafjKayX4nMvV7s7/vcrpBfW+WvxOCBWTlhKGNpUmAS9ApFDn51/FTuRgB/YA=="
+  ]
   ip_config {
     ip_address = "10.0.0.222/24"
     gateway = "10.0.0.1"
@@ -48,7 +52,7 @@ resource proxmox_vm test {
     import_from = "local"
     //Must be preloaded at this location, full path is /var/lib/vz/images/0/AlmaLinux-9-GenericCloud-latest.x86_64.qcow2
     //Long term recommendation is to use an nfs mount or something that supports RWM
-    import_path = "0/AlmaLinux-9-GenericCloud-latest.x86_64.qcow2"
+    import_path = "0/alma-base-image.qcow2"
   }
 
   disk {
