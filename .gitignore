@@ -31,3 +31,4 @@ terraform.tfstate.backup
 /.idea/modules.xml
 /.idea/terraform-provider-proxmox.iml
 /.idea/vcs.xml
+dist/
