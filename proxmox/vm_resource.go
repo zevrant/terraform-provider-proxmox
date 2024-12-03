@@ -437,7 +437,7 @@ func (r *vmResource) Update(ctx context.Context, request resource.UpdateRequest,
 
 	var disks = updateDisksFromQemuResponse(vmResponse.Data.OtherFields, plan)
 
-	diskChangeMapping := mapPlannedDisksToExisting(plan.Disks, disks)
+	diskChangeMapping, disksToBeRemoved := mapPlannedDisksToExisting(plan.Disks, disks)
 
 	var disksToAdd []VmDisk
 	var disksToUpdate []VmDisk
@@ -531,6 +531,36 @@ func (r *vmResource) Update(ctx context.Context, request resource.UpdateRequest,
 		params.Add("disk", fmt.Sprintf("%s%d", disk.BusType.ValueString(), disk.Order.ValueInt64()))
 
 		upid, vmCreationError = r.client.ResizeVmDisk(params, plan.NodeName.ValueString(), plan.VmId.ValueString())
+
+		if vmCreationError != nil {
+			diags.AddError(fmt.Sprintf("Failed to update proxmox vm %s%d, error response received", disk.BusType.ValueString(), disk.Order.ValueInt64()), vmCreationError.Error())
+			return
+		}
+
+		taskCompletionError = waitForTaskCompletion(plan.NodeName.ValueString(), *upid, r.client)
+
+		if taskCompletionError != nil {
+			response.Diagnostics.AddError("Creation of requested VM disk failed", taskCompletionError.Error())
+			return
+		}
+
+	}
+
+	for _, disk := range disksToBeRemoved {
+		params := url.Values{}
+		params.Add("delete", fmt.Sprintf("%s%d", disk.BusType.ValueString(), disk.Order.ValueInt64()))
+
+		upid, vmCreationError = r.client.UpdateVm(params, plan.NodeName.ValueString(), plan.VmId.ValueString())
+
+		if vmCreationError != nil {
+			diags.AddError(fmt.Sprintf("Failed to update proxmox vm %s%d, error response received", disk.BusType.ValueString(), disk.Order.ValueInt64()), vmCreationError.Error())
+			return
+		}
+
+		params = url.Values{}
+		params.Add("delete", "unused0")
+
+		upid, vmCreationError = r.client.UpdateVm(params, plan.NodeName.ValueString(), plan.VmId.ValueString())
 
 		if vmCreationError != nil {
 			diags.AddError(fmt.Sprintf("Failed to update proxmox vm %s%d, error response received", disk.BusType.ValueString(), disk.Order.ValueInt64()), vmCreationError.Error())

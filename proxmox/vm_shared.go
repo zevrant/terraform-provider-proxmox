@@ -458,19 +458,22 @@ func diskNeedsUpdate(plannedDisk VmDisk, existingDisk VmDisk) bool {
 	return !isEqual
 }
 
-func mapPlannedDisksToExisting(plannedDisks []VmDisk, existingDisks []VmDisk) map[int]int {
+func mapPlannedDisksToExisting(plannedDisks []VmDisk, existingDisks []VmDisk) (map[int]int, []VmDisk) {
 	var diskMappings = make(map[int]int)
+	disksToBeRemoved := make([]VmDisk, len(existingDisks))
+	copy(disksToBeRemoved, existingDisks)
 	for i, plannedDisk := range plannedDisks {
 		fmt.Println(fmt.Sprintf("MAPPING DISK %s%d", plannedDisk.BusType.ValueString(), plannedDisk.Order.ValueInt64()))
 		diskMappings[i] = -1
 		for j, existingDisk := range existingDisks {
 			if areDisksEqual(plannedDisk, existingDisk) {
 				diskMappings[i] = j
+				disksToBeRemoved = slices.Concat(disksToBeRemoved[0:j], disksToBeRemoved[j+1:]) //remove mapped disk
 				break
 			}
 		}
 	}
-	return diskMappings
+	return diskMappings, disksToBeRemoved
 }
 
 func areDisksEqual(disk1 VmDisk, disk2 VmDisk) bool {
