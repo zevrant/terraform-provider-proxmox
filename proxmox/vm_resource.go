@@ -317,8 +317,9 @@ func (r *vmResource) Create(ctx context.Context, request resource.CreateRequest,
 	for _, disk := range plan.Disks {
 		tflog.Info(ctx, fmt.Sprintf("Import from is %s", disk.ImportFrom.ValueString()))
 		if disk.ImportFrom.ValueString() != "" {
-			tflog.Info(ctx, "Resizing imported disk")
 			params := url.Values{}
+			tflog.Info(ctx, "Resizing imported disk")
+
 			params.Add("disk", fmt.Sprintf("%s%d", disk.BusType.ValueString(), disk.Order.ValueInt64()))
 			params.Add("size", disk.Size.ValueString())
 
@@ -409,7 +410,7 @@ func (r *vmResource) Read(ctx context.Context, request resource.ReadRequest, res
 		}
 	}
 
-	diags = response.State.Set(ctx, plan)
+	diags = response.State.Set(ctx, &plan)
 	response.Diagnostics.Append(diags...)
 	if response.Diagnostics.HasError() {
 		return
@@ -419,7 +420,8 @@ func (r *vmResource) Read(ctx context.Context, request resource.ReadRequest, res
 
 // Update updates the resource and sets the updated Terraform state on success.
 func (r *vmResource) Update(ctx context.Context, request resource.UpdateRequest, response *resource.UpdateResponse) {
-	var plan *VmModel
+	var plan, state *VmModel
+	response.Diagnostics.Append(request.State.Get(ctx, &state)...)
 	diags := request.Plan.Get(ctx, &plan)
 	response.Diagnostics.Append(diags...)
 	if response.Diagnostics.HasError() {
@@ -447,10 +449,21 @@ func (r *vmResource) Update(ctx context.Context, request resource.UpdateRequest,
 
 	for plannedDiskIndex, existingDiskIndex := range diskChangeMapping {
 		plannedDisk := plan.Disks[plannedDiskIndex]
-		existingDisk := disks[existingDiskIndex]
 		if existingDiskIndex == -1 {
 			disksToAdd = append(disksToAdd, plannedDisk)
-		} else if diskNeedsUpdate(plannedDisk, existingDisk) {
+			continue
+		}
+
+		existingDisk := disks[existingDiskIndex]
+		stateDisk := getDiskFromState(state, getDiskName(plannedDisk))
+		if diskNeedsUpdate(plannedDisk, existingDisk) || (plannedDisk.ImportFrom.ValueString() != "" && stateDisk.ImportFrom.ValueString() != "") {
+
+			tflog.Info(ctx, fmt.Sprintf("Planned disk is imported from %s, existing disk is imported from %s", plannedDisk.ImportFrom.ValueString(), existingDisk.ImportFrom.ValueString()))
+			if plannedDisk.ImportFrom.ValueString() != "" && stateDisk.ImportFrom.ValueString() != "" && (plannedDisk.ImportFrom.ValueString() != stateDisk.ImportFrom.ValueString() || plannedDisk.Path.ValueString() != stateDisk.StorageLocation.ValueString()) {
+				disksToBeRemoved = append(disksToBeRemoved, existingDisk)
+				disksToAdd = append(disksToAdd, plannedDisk)
+				continue
+			}
 			plannedSize := convertSizeToGibibytes(plannedDisk.Size.ValueString())
 			existingSize := convertSizeToGibibytes(existingDisk.Size.ValueString())
 			if plannedSize < existingSize {
@@ -465,21 +478,42 @@ func (r *vmResource) Update(ctx context.Context, request resource.UpdateRequest,
 		}
 	}
 
-	upid, vmCreationError := r.client.UpdateVm(qemuVmCreationRequest, plan.NodeName.ValueString(), plan.VmId.ValueString())
-
-	if vmCreationError != nil {
-		diags.AddError("Failed to update proxmox vm, error response received", vmCreationError.Error())
-		return
-	}
-
-	taskCompletionError := waitForTaskCompletion(plan.NodeName.ValueString(), *upid, r.client)
-
-	if taskCompletionError != nil {
-		diags.AddError("Creation of requested VM failed", taskCompletionError.Error())
-		return
-	}
+	var upid *string
+	var vmCreationError, taskCompletionError error
 
 	tflog.Debug(ctx, fmt.Sprintf("There are %d disks to add", len(disksToAdd)))
+
+	for _, disk := range disksToBeRemoved {
+		tflog.Info(ctx, fmt.Sprintf("Detaching disk %s%d", disk.BusType.ValueString(), disk.Order.ValueInt64()))
+		params := url.Values{}
+		params.Add("delete", fmt.Sprintf("%s%d", disk.BusType.ValueString(), disk.Order.ValueInt64()))
+
+		upid, vmCreationError = r.client.UpdateVm(params, plan.NodeName.ValueString(), plan.VmId.ValueString())
+
+		if vmCreationError != nil {
+			diags.AddError(fmt.Sprintf("Failed to update proxmox vm %s%d, error response received", disk.BusType.ValueString(), disk.Order.ValueInt64()), vmCreationError.Error())
+			return
+		}
+
+		tflog.Info(ctx, fmt.Sprintf("Detaching disk %s%d", disk.BusType.ValueString(), disk.Order.ValueInt64()))
+		params = url.Values{}
+		params.Add("delete", "unused0")
+
+		upid, vmCreationError = r.client.UpdateVm(params, plan.NodeName.ValueString(), plan.VmId.ValueString())
+
+		if vmCreationError != nil {
+			diags.AddError(fmt.Sprintf("Failed to update proxmox vm %s%d, error response received", disk.BusType.ValueString(), disk.Order.ValueInt64()), vmCreationError.Error())
+			return
+		}
+
+		taskCompletionError = waitForTaskCompletion(plan.NodeName.ValueString(), *upid, r.client)
+
+		if taskCompletionError != nil {
+			response.Diagnostics.AddError("Creation of requested VM disk failed", taskCompletionError.Error())
+			return
+		}
+
+	}
 
 	for _, disk := range disksToAdd {
 		params := url.Values{}
@@ -500,6 +534,28 @@ func (r *vmResource) Update(ctx context.Context, request resource.UpdateRequest,
 		if taskCompletionError != nil {
 			diags.AddError("Creation of requested VM disk failed", taskCompletionError.Error())
 			return
+		}
+
+		if disk.ImportFrom.ValueString() != "" {
+			params := url.Values{}
+			tflog.Info(ctx, "Resizing imported disk")
+
+			params.Add("disk", fmt.Sprintf("%s%d", disk.BusType.ValueString(), disk.Order.ValueInt64()))
+			params.Add("size", disk.Size.ValueString())
+
+			taskResponse, resizeDiskError := r.client.ResizeVmDisk(params, plan.NodeName.ValueString(), plan.VmId.ValueString())
+
+			if resizeDiskError != nil {
+				response.Diagnostics.AddError("Failed to resize imported disk", resizeDiskError.Error())
+				return
+			}
+
+			taskCompletionError = waitForTaskCompletion(plan.NodeName.ValueString(), *taskResponse, r.client)
+
+			if taskCompletionError != nil {
+				response.Diagnostics.AddError("Failed to wait for resize task completion", taskCompletionError.Error())
+				return
+			}
 		}
 
 	}
@@ -545,35 +601,18 @@ func (r *vmResource) Update(ctx context.Context, request resource.UpdateRequest,
 		}
 
 	}
+	upid, vmCreationError = r.client.UpdateVm(qemuVmCreationRequest, plan.NodeName.ValueString(), plan.VmId.ValueString())
 
-	for _, disk := range disksToBeRemoved {
-		params := url.Values{}
-		params.Add("delete", fmt.Sprintf("%s%d", disk.BusType.ValueString(), disk.Order.ValueInt64()))
+	if vmCreationError != nil {
+		diags.AddError("Failed to update proxmox vm, error response received", vmCreationError.Error())
+		return
+	}
 
-		upid, vmCreationError = r.client.UpdateVm(params, plan.NodeName.ValueString(), plan.VmId.ValueString())
+	taskCompletionError = waitForTaskCompletion(plan.NodeName.ValueString(), *upid, r.client)
 
-		if vmCreationError != nil {
-			diags.AddError(fmt.Sprintf("Failed to update proxmox vm %s%d, error response received", disk.BusType.ValueString(), disk.Order.ValueInt64()), vmCreationError.Error())
-			return
-		}
-
-		params = url.Values{}
-		params.Add("delete", "unused0")
-
-		upid, vmCreationError = r.client.UpdateVm(params, plan.NodeName.ValueString(), plan.VmId.ValueString())
-
-		if vmCreationError != nil {
-			diags.AddError(fmt.Sprintf("Failed to update proxmox vm %s%d, error response received", disk.BusType.ValueString(), disk.Order.ValueInt64()), vmCreationError.Error())
-			return
-		}
-
-		taskCompletionError = waitForTaskCompletion(plan.NodeName.ValueString(), *upid, r.client)
-
-		if taskCompletionError != nil {
-			response.Diagnostics.AddError("Creation of requested VM disk failed", taskCompletionError.Error())
-			return
-		}
-
+	if taskCompletionError != nil {
+		diags.AddError("Creation of requested VM failed", taskCompletionError.Error())
+		return
 	}
 
 	vmResponse, searchVmError = r.client.GetVmById(plan.NodeName.ValueString(), plan.VmId.ValueString())

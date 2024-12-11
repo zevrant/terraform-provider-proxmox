@@ -52,7 +52,7 @@ resource proxmox_vm test {
     import_from = "local"
     //Must be preloaded at this location, full path is /var/lib/vz/images/0/AlmaLinux-9-GenericCloud-latest.x86_64.qcow2
     //Long term recommendation is to use an nfs mount or something that supports RWM
-    import_path = "0/alma-base-image.qcow2"
+    import_path = "0/jenkins-agent.qcow2"
   }
 
   disk {
@@ -60,26 +60,6 @@ resource proxmox_vm test {
     storage_location = "sataLarge"
     size = "1002G"
     order = 1
-  }
-
-  disk {
-    bus_type = "scsi"
-    storage_location = "exosDisks"
-    size = "1000G"
-    order = 2
-  }
-
-  disk {
-    bus_type = "scsi"
-    storage_location = "exosDisks"
-    size = "2G"
-    order = 3
-  }
-  disk {
-    bus_type = "scsi"
-    storage_location = "exosDisks"
-    size = "1G"
-    order = 4
   }
 
   network_interface {

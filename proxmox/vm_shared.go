@@ -455,20 +455,46 @@ func diskNeedsUpdate(plannedDisk VmDisk, existingDisk VmDisk) bool {
 	isEqual = isEqual && plannedDisk.Discard.ValueBool() == existingDisk.Discard.ValueBool()
 	isEqual = isEqual && plannedDisk.Backup.ValueBool() == existingDisk.Backup.ValueBool()
 	isEqual = isEqual && plannedDisk.StorageLocation.ValueString() == existingDisk.StorageLocation.ValueString()
+	fmt.Printf("Planned disk is imported from %s, existing disk is imported from %s", plannedDisk.StorageLocation.ValueString(), existingDisk.ImportFrom.ValueString())
+
+	isEqual = isEqual && plannedDisk.ImportFrom.ValueString() == existingDisk.ImportFrom.ValueString()
 	return !isEqual
+}
+
+func getDiskFromState(state *VmModel, diskName string) *VmDisk {
+	for _, disk := range state.Disks {
+		if getDiskName(disk) == diskName {
+			return &disk
+		}
+	}
+	return nil
+}
+
+func getDiskName(disk VmDisk) string {
+	return fmt.Sprintf("%s%d", disk.BusType.ValueString(), disk.Order.ValueInt64())
 }
 
 func mapPlannedDisksToExisting(plannedDisks []VmDisk, existingDisks []VmDisk) (map[int]int, []VmDisk) {
 	var diskMappings = make(map[int]int)
 	disksToBeRemoved := make([]VmDisk, len(existingDisks))
 	copy(disksToBeRemoved, existingDisks)
+	var removals = 0
 	for i, plannedDisk := range plannedDisks {
 		fmt.Println(fmt.Sprintf("MAPPING DISK %s%d", plannedDisk.BusType.ValueString(), plannedDisk.Order.ValueInt64()))
 		diskMappings[i] = -1
 		for j, existingDisk := range existingDisks {
+
 			if areDisksEqual(plannedDisk, existingDisk) {
 				diskMappings[i] = j
-				disksToBeRemoved = slices.Concat(disksToBeRemoved[0:j], disksToBeRemoved[j+1:]) //remove mapped disk
+				if j+1 < len(disksToBeRemoved) {
+					fmt.Printf("Disk %s%d will not be removed", disksToBeRemoved[j-removals].BusType.ValueString(), disksToBeRemoved[j-removals].Order.ValueInt64())
+					disksToBeRemoved = slices.Concat(disksToBeRemoved[0:j-removals], disksToBeRemoved[j-removals+1:]) //remove mapped disk
+					removals = removals + 1
+				} else {
+					fmt.Printf("!Disk %s%d will not be removed", disksToBeRemoved[j-removals].BusType.ValueString(), disksToBeRemoved[j-removals].Order.ValueInt64())
+					disksToBeRemoved = disksToBeRemoved[0 : j-removals]
+					removals = removals + 1
+				}
 				break
 			}
 		}
