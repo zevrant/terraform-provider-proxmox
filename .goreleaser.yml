@@ -50,9 +50,9 @@ signs:
       - "--output"
       - "${signature}"
       - "--detach-sign"
-      - "${artifact}"
       - "--passphrase"
       - "{{ .Env.GPG_PASSWORD }}"
+      - "${artifact}"
 release:
   prerelease: auto
 
