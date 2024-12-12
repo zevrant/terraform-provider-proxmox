@@ -1,7 +1,7 @@
 terraform {
   required_providers {
     proxmox = {
-      source = "app.terraform.io/zevrant-services-dev/proxmox"
+      source = "app.terraform.io/zevrant-services/proxmox"
     }
   }
 
@@ -22,8 +22,8 @@ data proxmox_vm test {
 resource proxmox_vm test {
   name = "terraform-test-vm-nextcloud-clone"
   qemu_agent_enabled = true
-  cores = "7"
-  memory = "16384"
+  cores = "2"
+  memory = "4096"
   os_type = "l26"
   description = "terraform testing vm"
   node_name = "proxmox-01"
@@ -52,18 +52,11 @@ resource proxmox_vm test {
     import_from = "local"
     //Must be preloaded at this location, full path is /var/lib/vz/images/0/AlmaLinux-9-GenericCloud-latest.x86_64.qcow2
     //Long term recommendation is to use an nfs mount or something that supports RWM
-    import_path = "0/jenkins-agent.qcow2"
-  }
-
-  disk {
-    bus_type = "scsi"
-    storage_location = "sataLarge"
-    size = "1002G"
-    order = 1
+    import_path = "0/alma-base-image-0.0.1.qcow2"
   }
 
   network_interface {
-    mac_address = "1a:2b:3c:4e:5f:60"
+    mac_address = "1a:2b:3c:4e:5f:61"
     bridge = "vmbr0"
     firewall = true
     order = 0

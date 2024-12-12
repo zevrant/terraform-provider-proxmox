@@ -455,9 +455,6 @@ func diskNeedsUpdate(plannedDisk VmDisk, existingDisk VmDisk) bool {
 	isEqual = isEqual && plannedDisk.Discard.ValueBool() == existingDisk.Discard.ValueBool()
 	isEqual = isEqual && plannedDisk.Backup.ValueBool() == existingDisk.Backup.ValueBool()
 	isEqual = isEqual && plannedDisk.StorageLocation.ValueString() == existingDisk.StorageLocation.ValueString()
-	fmt.Printf("Planned disk is imported from %s, existing disk is imported from %s", plannedDisk.StorageLocation.ValueString(), existingDisk.ImportFrom.ValueString())
-
-	isEqual = isEqual && plannedDisk.ImportFrom.ValueString() == existingDisk.ImportFrom.ValueString()
 	return !isEqual
 }
 

@@ -456,10 +456,20 @@ func (r *vmResource) Update(ctx context.Context, request resource.UpdateRequest,
 
 		existingDisk := disks[existingDiskIndex]
 		stateDisk := getDiskFromState(state, getDiskName(plannedDisk))
-		if diskNeedsUpdate(plannedDisk, existingDisk) || (plannedDisk.ImportFrom.ValueString() != "" && stateDisk.ImportFrom.ValueString() != "") {
 
-			tflog.Info(ctx, fmt.Sprintf("Planned disk is imported from %s, existing disk is imported from %s", plannedDisk.ImportFrom.ValueString(), existingDisk.ImportFrom.ValueString()))
-			if plannedDisk.ImportFrom.ValueString() != "" && stateDisk.ImportFrom.ValueString() != "" && (plannedDisk.ImportFrom.ValueString() != stateDisk.ImportFrom.ValueString() || plannedDisk.Path.ValueString() != stateDisk.StorageLocation.ValueString()) {
+		tflog.Info(ctx, fmt.Sprintf("Disk %s needs update %v", getDiskName(plannedDisk), diskNeedsUpdate(plannedDisk, existingDisk)))
+		isImported := plannedDisk.ImportFrom.ValueString() != "" && stateDisk.ImportFrom.ValueString() != ""
+		importLocationChanged := plannedDisk.ImportFrom.ValueString() != stateDisk.ImportFrom.ValueString()
+		importPathChanged := plannedDisk.Path.ValueString() != stateDisk.Path.ValueString()
+		tflog.Info(ctx, fmt.Sprintf("Import location or path has changes %v", isImported && (importLocationChanged || importPathChanged)))
+		if diskNeedsUpdate(plannedDisk, existingDisk) || (isImported && (importLocationChanged || importPathChanged)) {
+
+			tflog.Info(ctx, fmt.Sprintf("Planned disk is imported from %s, existing disk is imported from %s", plannedDisk.ImportFrom.ValueString(), stateDisk.ImportFrom.ValueString()))
+			tflog.Info(ctx, fmt.Sprintf("Planned disk is import path is %s, existing disk is import path is %s", plannedDisk.Path.ValueString(), stateDisk.Path.ValueString()))
+			tflog.Info(ctx, fmt.Sprintf("Disk is imported %v", plannedDisk.ImportFrom.ValueString() != "" && stateDisk.ImportFrom.ValueString() != ""))
+
+			if isImported && (importLocationChanged || importPathChanged) {
+				tflog.Info(ctx, fmt.Sprintf("Disk %s will be removed and reimported", getDiskName(plannedDisk)))
 				disksToBeRemoved = append(disksToBeRemoved, existingDisk)
 				disksToAdd = append(disksToAdd, plannedDisk)
 				continue
@@ -481,7 +491,7 @@ func (r *vmResource) Update(ctx context.Context, request resource.UpdateRequest,
 	var upid *string
 	var vmCreationError, taskCompletionError error
 
-	tflog.Debug(ctx, fmt.Sprintf("There are %d disks to add", len(disksToAdd)))
+	tflog.Info(ctx, fmt.Sprintf("There are %d disks to remove", len(disksToBeRemoved)))
 
 	for _, disk := range disksToBeRemoved {
 		tflog.Info(ctx, fmt.Sprintf("Detaching disk %s%d", disk.BusType.ValueString(), disk.Order.ValueInt64()))
@@ -514,6 +524,8 @@ func (r *vmResource) Update(ctx context.Context, request resource.UpdateRequest,
 		}
 
 	}
+
+	tflog.Info(ctx, fmt.Sprintf("There are %d disks to add", len(disksToAdd)))
 
 	for _, disk := range disksToAdd {
 		params := url.Values{}
@@ -559,6 +571,8 @@ func (r *vmResource) Update(ctx context.Context, request resource.UpdateRequest,
 		}
 
 	}
+
+	tflog.Info(ctx, fmt.Sprintf("There are %d disks to update", len(disksToUpdate)))
 
 	for _, disk := range disksToUpdate {
 		params := url.Values{}
