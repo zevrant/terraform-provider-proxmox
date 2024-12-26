@@ -457,6 +457,13 @@ func (r *vmResource) Update(ctx context.Context, request resource.UpdateRequest,
 		existingDisk := disks[existingDiskIndex]
 		stateDisk := getDiskFromState(state, getDiskName(plannedDisk))
 
+		if stateDisk == nil {
+			tflog.Info(ctx, fmt.Sprintf("disk %s not found in the statefile skipping", getDiskName(plannedDisk)))
+			tflog.Info(ctx, fmt.Sprintf("existing disk is %s", getDiskName(existingDisk)))
+			disksToAdd = append(disksToAdd, plannedDisk)
+			continue
+		}
+
 		tflog.Info(ctx, fmt.Sprintf("Disk %s needs update %v", getDiskName(plannedDisk), diskNeedsUpdate(plannedDisk, existingDisk)))
 		isImported := plannedDisk.ImportFrom.ValueString() != "" && stateDisk.ImportFrom.ValueString() != ""
 		importLocationChanged := plannedDisk.ImportFrom.ValueString() != stateDisk.ImportFrom.ValueString()
@@ -464,9 +471,10 @@ func (r *vmResource) Update(ctx context.Context, request resource.UpdateRequest,
 		tflog.Info(ctx, fmt.Sprintf("Import location or path has changes %v", isImported && (importLocationChanged || importPathChanged)))
 		if diskNeedsUpdate(plannedDisk, existingDisk) || (isImported && (importLocationChanged || importPathChanged)) {
 
-			tflog.Info(ctx, fmt.Sprintf("Planned disk is imported from %s, existing disk is imported from %s", plannedDisk.ImportFrom.ValueString(), stateDisk.ImportFrom.ValueString()))
-			tflog.Info(ctx, fmt.Sprintf("Planned disk is import path is %s, existing disk is import path is %s", plannedDisk.Path.ValueString(), stateDisk.Path.ValueString()))
-			tflog.Info(ctx, fmt.Sprintf("Disk is imported %v", plannedDisk.ImportFrom.ValueString() != "" && stateDisk.ImportFrom.ValueString() != ""))
+			diskName := getDiskName(plannedDisk)
+			tflog.Info(ctx, fmt.Sprintf("Planned disk %s is imported from %s, existing disk is imported from %s", diskName, plannedDisk.ImportFrom.ValueString(), stateDisk.ImportFrom.ValueString()))
+			tflog.Info(ctx, fmt.Sprintf("Planned disk %s is import path is %s, existing disk is import path is %s", diskName, plannedDisk.Path.ValueString(), stateDisk.Path.ValueString()))
+			tflog.Info(ctx, fmt.Sprintf("Disk %s is imported %v", diskName, plannedDisk.ImportFrom.ValueString() != "" && stateDisk.ImportFrom.ValueString() != ""))
 
 			if isImported && (importLocationChanged || importPathChanged) {
 				tflog.Info(ctx, fmt.Sprintf("Disk %s will be removed and reimported", getDiskName(plannedDisk)))

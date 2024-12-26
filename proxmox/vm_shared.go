@@ -150,6 +150,7 @@ func updateDisksFromQemuResponse(otherFields map[string]interface{}, vmModel *Vm
 
 	for order, key := range keySlice {
 		disk := otherFields[key].(string)
+
 		diskParts := strings.Split(disk, ",")
 		diskFieldMap := mapKeyValuePairsToMap(diskParts[1:])
 		cache := diskFieldMap["cache"]
@@ -162,32 +163,38 @@ func updateDisksFromQemuResponse(otherFields map[string]interface{}, vmModel *Vm
 		if strings.Contains(diskParts[0], "cloudinit") {
 			continue
 		}
-		for _, plannedDisk := range vmModel.Disks {
-			if plannedDisk.BusType.ValueString() == key[:len("scsi")] && plannedDisk.Order.ValueInt64() == int64(order) && plannedDisk.StorageLocation.ValueString() == storageLocation {
-				newVmDisk := VmDisk{
-					Id:              types.Int64Value(diskNumber),
-					BusType:         types.StringValue(key[:len("scsi")]),
-					StorageLocation: types.StringValue(storageLocation),
-					IoThread:        types.BoolValue(diskFieldMap["iothread"] == "1"),
-					Size:            types.StringValue(diskFieldMap["size"]),
-					Cache:           types.StringValue(cache),
-					AsyncIo:         types.StringValue(diskFieldMap["aio"]),
-					Replicate:       types.BoolValue(diskFieldMap["replicate"] == ""),
-					ReadOnly:        types.BoolValue(diskFieldMap["ro"] == "1"),
-					SsdEmulation:    types.BoolValue(diskFieldMap["ssd"] == "1"),
-					Backup:          types.BoolValue(diskFieldMap["backup"] == ""),
-					Discard:         types.BoolValue(diskFieldMap["discard"] == "on"),
-					Order:           types.Int64Value(int64(order)),
-					ImportFrom:      plannedDisk.ImportFrom,
-					Path:            plannedDisk.Path,
-				}
 
-				if newVmDisk.AsyncIo.ValueString() == "" {
-					newVmDisk.AsyncIo = types.StringValue("default")
-				}
-				disks = append(disks, newVmDisk)
-			}
+		//for _, plannedDisk := range vmModel.Disks {
+		//	if plannedDisk.BusType.ValueString() == key[:len("scsi")] && plannedDisk.Order.ValueInt64() == int64(order) && plannedDisk.StorageLocation.ValueString() == storageLocation {
+		newVmDisk := VmDisk{
+			Id:              types.Int64Value(diskNumber),
+			BusType:         types.StringValue(key[:len("scsi")]),
+			StorageLocation: types.StringValue(storageLocation),
+			IoThread:        types.BoolValue(diskFieldMap["iothread"] == "1"),
+			Size:            types.StringValue(diskFieldMap["size"]),
+			Cache:           types.StringValue(cache),
+			AsyncIo:         types.StringValue(diskFieldMap["aio"]),
+			Replicate:       types.BoolValue(diskFieldMap["replicate"] == ""),
+			ReadOnly:        types.BoolValue(diskFieldMap["ro"] == "1"),
+			SsdEmulation:    types.BoolValue(diskFieldMap["ssd"] == "1"),
+			Backup:          types.BoolValue(diskFieldMap["backup"] == ""),
+			Discard:         types.BoolValue(diskFieldMap["discard"] == "on"),
+			Order:           types.Int64Value(int64(order)),
+			ImportFrom:      types.StringValue(""),
+			Path:            types.StringValue(""),
 		}
+		plannedDiskIndex := findDiskIndex(vmModel.Disks, newVmDisk)
+		if plannedDiskIndex != -1 {
+			newVmDisk.ImportFrom = vmModel.Disks[plannedDiskIndex].ImportFrom
+			newVmDisk.Path = vmModel.Disks[plannedDiskIndex].Path
+		}
+
+		if newVmDisk.AsyncIo.ValueString() == "" {
+			newVmDisk.AsyncIo = types.StringValue("default")
+		}
+		disks = append(disks, newVmDisk)
+		//}
+		//}
 	}
 	return disks
 }
@@ -473,33 +480,102 @@ func getDiskName(disk VmDisk) string {
 
 func mapPlannedDisksToExisting(plannedDisks []VmDisk, existingDisks []VmDisk) (map[int]int, []VmDisk) {
 	var diskMappings = make(map[int]int)
-	disksToBeRemoved := make([]VmDisk, len(existingDisks))
-	copy(disksToBeRemoved, existingDisks)
-	var removals = 0
-	for i, plannedDisk := range plannedDisks {
-		fmt.Println(fmt.Sprintf("MAPPING DISK %s%d", plannedDisk.BusType.ValueString(), plannedDisk.Order.ValueInt64()))
-		diskMappings[i] = -1
-		for j, existingDisk := range existingDisks {
+	var disksToBeRemoved []VmDisk
 
-			if areDisksEqual(plannedDisk, existingDisk) {
-				diskMappings[i] = j
-				if j+1 < len(disksToBeRemoved) {
-					fmt.Printf("Disk %s%d will not be removed", disksToBeRemoved[j-removals].BusType.ValueString(), disksToBeRemoved[j-removals].Order.ValueInt64())
-					disksToBeRemoved = slices.Concat(disksToBeRemoved[0:j-removals], disksToBeRemoved[j-removals+1:]) //remove mapped disk
-					removals = removals + 1
-				} else {
-					fmt.Printf("!Disk %s%d will not be removed", disksToBeRemoved[j-removals].BusType.ValueString(), disksToBeRemoved[j-removals].Order.ValueInt64())
-					disksToBeRemoved = disksToBeRemoved[0 : j-removals]
-					removals = removals + 1
-				}
-				break
-			}
+	fmt.Println("existing disks")
+	for _, disk := range existingDisks {
+		fmt.Print(getDiskName(disk) + "\n")
+	}
+
+	fmt.Println("planned disks")
+	for _, disk := range plannedDisks {
+		fmt.Print(getDiskName(disk) + "\n")
+	}
+
+	for i, existingDisk := range existingDisks {
+		existingDiskIndex := findDiskIndex(plannedDisks, existingDisk)
+
+		if existingDiskIndex == -1 {
+			fmt.Println(fmt.Sprintf("Existing disk %s not found in plan, marking for deletion", getDiskName(existingDisk)))
+			disksToBeRemoved = append(disksToBeRemoved, existingDisk)
+		} else {
+			fmt.Println(fmt.Sprintf("Mapping Disk disk %s to %d", getDiskName(existingDisk), i))
+			diskMappings[existingDiskIndex] = i
 		}
 	}
+	for i, _ := range plannedDisks {
+		_, exists := diskMappings[i]
+
+		if !exists {
+			diskMappings[i] = -1
+		}
+	}
+
+	fmt.Printf("disks to remove %d \n", len(disksToBeRemoved))
+	for _, disk := range disksToBeRemoved {
+		fmt.Print(getDiskName(disk) + "\n")
+	}
+
 	return diskMappings, disksToBeRemoved
 }
 
+//func removeDisks(disksToBeRemoved []VmDisk, diskSlice []VmDisk) []VmDisk {
+//	localDiskSlice := diskSlice
+//	sort.Slice(diskSlice, func(i, j int) bool {
+//		return strings.Compare(getDiskName(localDiskSlice[i]), getDiskName(localDiskSlice[j])) < 0
+//	})
+//	for _, toRemove := range disksToBeRemoved {
+//		index := findDiskIndex(diskSlice, toRemove)
+//		if index != 0 && index != len(diskSlice)-1 {
+//			localDiskSlice = slices.Concat(localDiskSlice[0:index], disksToBeRemoved[index+1:]) //remove from middle
+//		} else if index == 0 {
+//			localDiskSlice = localDiskSlice[1:]
+//		} else { //index is the end of the list
+//			localDiskSlice = localDiskSlice[0 : index-1]
+//		}
+//	}
+//}
+
+func findDiskIndex(diskSlice []VmDisk, toBeFound VmDisk) int {
+	fmt.Printf("finding %s\n", getDiskName(toBeFound))
+	for _, disk := range diskSlice {
+		fmt.Print(getDiskName(disk) + " ")
+	}
+	index := findDiskIndexHelper(diskSlice, toBeFound, 0, len(diskSlice)-1)
+	fmt.Printf("Found index is for %s is %d", getDiskName(toBeFound), index)
+	return index
+}
+
+func findDiskIndexHelper(diskSlice []VmDisk, toBeFound VmDisk, startIndex int, endIndex int) int {
+
+	if startIndex < 0 {
+		return -1
+	} else if areDisksEqual(diskSlice[startIndex], toBeFound) {
+		return startIndex
+	} else if areDisksEqual(diskSlice[endIndex], toBeFound) {
+		return endIndex
+	} else if endIndex < startIndex {
+		return -1
+	}
+
+	indexDiff := endIndex - startIndex
+
+	halfWayIndex := indexDiff / 2
+	fmt.Printf("start %d, end %d, middle %d \n", startIndex, endIndex, halfWayIndex)
+	halfWayComparison := strings.Compare(getDiskName(diskSlice[halfWayIndex]), getDiskName(toBeFound))
+	if halfWayComparison > 0 {
+		return findDiskIndexHelper(diskSlice, toBeFound, 0, halfWayIndex)
+	} else if halfWayComparison < 0 {
+		return findDiskIndexHelper(diskSlice, toBeFound, halfWayComparison, endIndex)
+	} else {
+		return halfWayIndex
+	}
+}
+
 func areDisksEqual(disk1 VmDisk, disk2 VmDisk) bool {
+	fmt.Printf("busType %s %s\n", disk1.BusType.ValueString(), disk2.BusType.ValueString())
+	fmt.Printf("ID %d %d\n", disk1.Order.ValueInt64(), disk2.Order.ValueInt64())
+	fmt.Printf("StorageLocation %s %s\n", disk1.StorageLocation.ValueString(), disk2.StorageLocation.ValueString())
 	isEqual := disk1.BusType.ValueString() == disk2.BusType.ValueString()
 	isEqual = isEqual && disk1.Id.ValueInt64() == disk2.Id.ValueInt64()
 	isEqual = isEqual && disk1.StorageLocation.ValueString() == disk2.StorageLocation.ValueString()
