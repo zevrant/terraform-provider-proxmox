@@ -39,8 +39,8 @@ resource proxmox_vm test {
     "ecdsa-sha2-nistp384 AAAAE2VjZHNhLXNoYTItbmlzdHAzODQAAAAIbmlzdHAzODQAAABhBLtOxtriPtNmisKkmfHfCByaTYCHRsDHyzQAi0yL6LUeKybjYExfR6N0xBMcIj6M/b5U3aafjKayX4nMvV7s7/vcrpBfW+WvxOCBWTlhKGNpUmAS9ApFDn51/FTuRgB/YA=="
   ]
   ip_config {
-    ip_address = "10.0.0.222/24"
-    gateway = "10.0.0.1"
+    ip_address = "10.1.0.3/24"
+    gateway = "10.1.0.1"
     order = 0
   }
 
@@ -57,7 +57,7 @@ resource proxmox_vm test {
 
   network_interface {
     mac_address = "1a:2b:3c:4e:5f:61"
-    bridge = "vmbr0"
+    bridge = "shared"
     firewall = true
     order = 0
   }

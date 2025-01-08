@@ -144,6 +144,34 @@ func mapKeyValuePairsToMap(pairs []string) map[string]string {
 	return mappedPairs
 }
 
+func assignDiskIds(vmModel VmModel) VmModel {
+	vmDisks := vmModel.Disks
+
+	storageLocations := make([]string, 0)
+
+	for _, disk := range vmDisks {
+		if !slices.Contains(storageLocations, disk.StorageLocation.ValueString()) {
+			storageLocations = append(storageLocations, disk.StorageLocation.ValueString())
+		}
+	}
+
+	storageIdMapping := make(map[string]int64)
+
+	for _, location := range storageLocations {
+		storageIdMapping[location] = int64(0)
+	}
+
+	newDisks := make([]VmDisk, 0)
+	for _, disk := range vmDisks {
+		currentId := storageIdMapping[disk.StorageLocation.ValueString()]
+		storageIdMapping[disk.StorageLocation.ValueString()] = currentId + 1
+		disk.Id = types.Int64Value(currentId)
+		newDisks = append(newDisks, disk)
+	}
+	vmModel.Disks = newDisks
+	return vmModel
+}
+
 func updateDisksFromQemuResponse(otherFields map[string]interface{}, vmModel *VmModel) []VmDisk {
 	var keySlice = getDiskKeysFromJsonDict(otherFields)
 	var disks []VmDisk
@@ -193,6 +221,9 @@ func updateDisksFromQemuResponse(otherFields map[string]interface{}, vmModel *Vm
 			newVmDisk.AsyncIo = types.StringValue("default")
 		}
 		disks = append(disks, newVmDisk)
+		sort.Slice(disks, func(i, j int) bool {
+			return strings.Compare(getDiskName(disks[i]), getDiskName(disks[j])) < 0
+		})
 		//}
 		//}
 	}
@@ -537,7 +568,7 @@ func mapPlannedDisksToExisting(plannedDisks []VmDisk, existingDisks []VmDisk) (m
 //}
 
 func findDiskIndex(diskSlice []VmDisk, toBeFound VmDisk) int {
-	fmt.Printf("finding %s\n", getDiskName(toBeFound))
+	fmt.Printf("finding %s with ID %d\n", getDiskName(toBeFound), toBeFound.Id.ValueInt64())
 	for _, disk := range diskSlice {
 		fmt.Print(getDiskName(disk) + " ")
 	}
@@ -550,6 +581,12 @@ func findDiskIndexHelper(diskSlice []VmDisk, toBeFound VmDisk, startIndex int, e
 
 	if startIndex < 0 {
 		return -1
+	} else if startIndex == endIndex {
+		if areDisksEqual(diskSlice[startIndex], toBeFound) {
+			return startIndex
+		} else {
+			return -1
+		}
 	} else if areDisksEqual(diskSlice[startIndex], toBeFound) {
 		return startIndex
 	} else if areDisksEqual(diskSlice[endIndex], toBeFound) {
@@ -566,7 +603,7 @@ func findDiskIndexHelper(diskSlice []VmDisk, toBeFound VmDisk, startIndex int, e
 	if halfWayComparison > 0 {
 		return findDiskIndexHelper(diskSlice, toBeFound, 0, halfWayIndex)
 	} else if halfWayComparison < 0 {
-		return findDiskIndexHelper(diskSlice, toBeFound, halfWayComparison, endIndex)
+		return findDiskIndexHelper(diskSlice, toBeFound, endIndex-halfWayIndex, endIndex)
 	} else {
 		return halfWayIndex
 	}

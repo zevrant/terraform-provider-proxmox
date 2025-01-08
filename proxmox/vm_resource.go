@@ -346,6 +346,8 @@ func (r *vmResource) Create(ctx context.Context, request resource.CreateRequest,
 		return
 	}
 
+	newPlan := assignDiskIds(*plan)
+	plan = &newPlan
 	updateVmModelFromResponse(plan, *vmResponse, &ctx)
 
 	diags = response.State.Set(ctx, &plan)
