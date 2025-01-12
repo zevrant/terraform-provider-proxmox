@@ -177,6 +177,7 @@ func (d *qemuDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, r
 						},
 						"order": schema.Int64Attribute{Computed: true},
 						"type":  schema.StringAttribute{Computed: true},
+						"mtu":   schema.Int64Attribute{Computed: true},
 					},
 				},
 			},
@@ -262,6 +263,9 @@ func (d *qemuDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, r
 				Computed: true,
 			},
 			"default_user": schema.StringAttribute{Computed: true},
+			"cloud_init_storage_name": schema.StringAttribute{
+				Computed: true,
+			},
 		},
 	}
 }

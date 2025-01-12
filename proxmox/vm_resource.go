@@ -162,6 +162,10 @@ func (r *vmResource) Schema(_ context.Context, _ resource.SchemaRequest, respons
 							Optional: true,
 							Default:  stringdefault.StaticString("virtio"),
 						},
+						"mtu": schema.Int64Attribute{
+							Optional: true,
+							Computed: true,
+						},
 					},
 				},
 			},
@@ -282,6 +286,11 @@ func (r *vmResource) Schema(_ context.Context, _ resource.SchemaRequest, respons
 				Optional: true,
 				Computed: true,
 				Default:  stringdefault.StaticString(""),
+			},
+			"cloud_init_storage_name": schema.StringAttribute{
+				Optional: true,
+				Computed: true,
+				Default:  stringdefault.StaticString("local-zfs"),
 			},
 		},
 	}

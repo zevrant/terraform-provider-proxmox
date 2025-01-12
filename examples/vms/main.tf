@@ -20,7 +20,7 @@ data proxmox_vm test {
 }
 
 resource proxmox_vm test {
-  name = "terraform-test-vm-nextcloud-clone"
+  name = "terraform-test-vm"
   qemu_agent_enabled = true
   cores = "2"
   memory = "4096"
@@ -35,6 +35,7 @@ resource proxmox_vm test {
   protection = false
   nameserver = "1.1.1.1"
   default_user = "zevrant"
+  cloud_init_storage_name = "exosDisks"
   ssh_keys = [
     "ecdsa-sha2-nistp384 AAAAE2VjZHNhLXNoYTItbmlzdHAzODQAAAAIbmlzdHAzODQAAABhBLtOxtriPtNmisKkmfHfCByaTYCHRsDHyzQAi0yL6LUeKybjYExfR6N0xBMcIj6M/b5U3aafjKayX4nMvV7s7/vcrpBfW+WvxOCBWTlhKGNpUmAS9ApFDn51/FTuRgB/YA=="
   ]
@@ -52,7 +53,7 @@ resource proxmox_vm test {
     import_from = "local"
     //Must be preloaded at this location, full path is /var/lib/vz/images/0/AlmaLinux-9-GenericCloud-latest.x86_64.qcow2
     //Long term recommendation is to use an nfs mount or something that supports RWM
-    import_path = "0/alma-base-image-0.0.1.qcow2"
+    import_path = "0/alma-base-image-0.0.11.qcow2"
   }
 
   network_interface {
@@ -60,5 +61,6 @@ resource proxmox_vm test {
     bridge = "shared"
     firewall = true
     order = 0
+    mtu = 1412
   }
 }

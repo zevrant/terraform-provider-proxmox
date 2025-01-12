@@ -19,36 +19,37 @@ import (
 const NETWORK_INTERFACE_TYPES = "e1000 | e1000-82540em | e1000-82544gc | e1000-82545em | e1000e | i82551 | i82557b | i82559er | ne2k_isa | ne2k_pci | pcnet | rtl8139 | virtio | vmxnet3"
 
 type VmModel struct {
-	Acpi              types.Bool           `tfsdk:"acpi"`
-	Agent             types.Bool           `tfsdk:"qemu_agent_enabled"`
-	AutoStart         types.Bool           `tfsdk:"auto_start"`
-	Bios              types.String         `tfsdk:"bios"`
-	BootOrder         types.List           `tfsdk:"boot_order"`
-	CloudInitUpgrade  types.Bool           `tfsdk:"perform_cloud_init_upgrade"`
-	Cores             types.Int64          `tfsdk:"cores"`
-	Cpu               types.String         `tfsdk:"cpu_type"`
-	CpuLimit          types.Int64          `tfsdk:"cpu_limit"`
-	Description       types.String         `tfsdk:"description"`
-	Disks             []VmDisk             `tfsdk:"disk"`
-	HostStartupOrder  types.Int64          `tfsdk:"host_startup_order"`
-	IpConfigurations  []VmIpConfig         `tfsdk:"ip_config"`
-	Kvm               types.Bool           `tfsdk:"kvm"`
-	Memory            types.Int64          `tfsdk:"memory"`
-	Name              types.String         `tfsdk:"name"`
-	Nameserver        types.String         `tfsdk:"nameserver"`
-	NetworkInterfaces []VmNetworkInterface `tfsdk:"network_interface"`
-	NodeName          types.String         `tfsdk:"node_name"`
-	Numa              types.Bool           `tfsdk:"numa_active"`
-	OnBoot            types.Bool           `tfsdk:"start_on_boot"`
-	OsType            types.String         `tfsdk:"os_type"`
-	Protection        types.Bool           `tfsdk:"protection"`
-	ScsiHw            types.String         `tfsdk:"scsi_hw"`
-	Sockets           types.Int64          `tfsdk:"sockets"`
-	SshKeys           types.List           `tfsdk:"ssh_keys"`
-	Tags              types.List           `tfsdk:"tags"`
-	VmGenId           types.String         `tfsdk:"vmgenid"`
-	VmId              types.String         `tfsdk:"vm_id"`
-	DefaultUser       types.String         `tfsdk:"default_user"`
+	Acpi                 types.Bool           `tfsdk:"acpi"`
+	Agent                types.Bool           `tfsdk:"qemu_agent_enabled"`
+	AutoStart            types.Bool           `tfsdk:"auto_start"`
+	Bios                 types.String         `tfsdk:"bios"`
+	BootOrder            types.List           `tfsdk:"boot_order"`
+	CloudInitUpgrade     types.Bool           `tfsdk:"perform_cloud_init_upgrade"`
+	Cores                types.Int64          `tfsdk:"cores"`
+	Cpu                  types.String         `tfsdk:"cpu_type"`
+	CpuLimit             types.Int64          `tfsdk:"cpu_limit"`
+	Description          types.String         `tfsdk:"description"`
+	Disks                []VmDisk             `tfsdk:"disk"`
+	HostStartupOrder     types.Int64          `tfsdk:"host_startup_order"`
+	IpConfigurations     []VmIpConfig         `tfsdk:"ip_config"`
+	Kvm                  types.Bool           `tfsdk:"kvm"`
+	Memory               types.Int64          `tfsdk:"memory"`
+	Name                 types.String         `tfsdk:"name"`
+	Nameserver           types.String         `tfsdk:"nameserver"`
+	NetworkInterfaces    []VmNetworkInterface `tfsdk:"network_interface"`
+	NodeName             types.String         `tfsdk:"node_name"`
+	Numa                 types.Bool           `tfsdk:"numa_active"`
+	OnBoot               types.Bool           `tfsdk:"start_on_boot"`
+	OsType               types.String         `tfsdk:"os_type"`
+	Protection           types.Bool           `tfsdk:"protection"`
+	ScsiHw               types.String         `tfsdk:"scsi_hw"`
+	Sockets              types.Int64          `tfsdk:"sockets"`
+	SshKeys              types.List           `tfsdk:"ssh_keys"`
+	Tags                 types.List           `tfsdk:"tags"`
+	VmGenId              types.String         `tfsdk:"vmgenid"`
+	VmId                 types.String         `tfsdk:"vm_id"`
+	DefaultUser          types.String         `tfsdk:"default_user"`
+	CloudInitStorageName types.String         `tfsdk:"cloud_init_storage_name"`
 }
 
 type VmNetworkInterface struct {
@@ -57,6 +58,7 @@ type VmNetworkInterface struct {
 	Bridge     types.String `tfsdk:"bridge"`
 	Firewall   types.Bool   `tfsdk:"firewall"`
 	Order      types.Int64  `tfsdk:"order"`
+	Mtu        types.Int64  `tfsdk:"mtu"`
 }
 
 type VmDisk struct {
@@ -175,7 +177,6 @@ func assignDiskIds(vmModel VmModel) VmModel {
 func updateDisksFromQemuResponse(otherFields map[string]interface{}, vmModel *VmModel) []VmDisk {
 	var keySlice = getDiskKeysFromJsonDict(otherFields)
 	var disks []VmDisk
-
 	for order, key := range keySlice {
 		disk := otherFields[key].(string)
 
@@ -189,6 +190,8 @@ func updateDisksFromQemuResponse(otherFields map[string]interface{}, vmModel *Vm
 
 		diskNumber, _ := strconv.ParseInt(strings.Split(strings.Split(diskParts[0], ":")[1], "-")[3], 10, 64)
 		if strings.Contains(diskParts[0], "cloudinit") {
+			//e.g. local-zfs:vm-1040-cloudinit
+			vmModel.CloudInitStorageName = types.StringValue(strings.Split(diskParts[0], ":")[0])
 			continue
 		}
 
@@ -211,6 +214,7 @@ func updateDisksFromQemuResponse(otherFields map[string]interface{}, vmModel *Vm
 			ImportFrom:      types.StringValue(""),
 			Path:            types.StringValue(""),
 		}
+
 		plannedDiskIndex := findDiskIndex(vmModel.Disks, newVmDisk)
 		if plannedDiskIndex != -1 {
 			newVmDisk.ImportFrom = vmModel.Disks[plannedDiskIndex].ImportFrom
@@ -267,6 +271,11 @@ func mapNetworkInterfacesFromQemuResponse(otherFields map[string]interface{}) []
 			Firewall:   types.BoolValue(mappedNicFields["firewall"] == "1"),
 			Order:      types.Int64Value(int64(order)),
 			Type:       types.StringValue(networkInterfaceType),
+		}
+
+		if mappedNicFields["mtu"] != "" {
+			mtu, _ := strconv.ParseInt(mappedNicFields["mtu"], 10, 64)
+			newVmNic.Mtu = types.Int64Value(mtu)
 		}
 
 		vmNics = append(vmNics, newVmNic)
@@ -426,7 +435,11 @@ func attachVmDiskRequests(disks []VmDisk, params *url.Values, vmId string, cloud
 
 func attachVmNicRequests(vmModel VmModel, params *url.Values) {
 	for _, nicConfig := range vmModel.NetworkInterfaces {
-		params.Add(fmt.Sprintf("net%d", nicConfig.Order.ValueInt64()), fmt.Sprintf("%s=%s,bridge=%s,firewall=%s", nicConfig.Type.ValueString(), nicConfig.MacAddress.ValueString(), nicConfig.Bridge.ValueString(), mapBoolToProxmoxString(nicConfig.Firewall.ValueBool())))
+		mtu := ""
+		if !nicConfig.Mtu.IsNull() {
+			mtu = fmt.Sprintf(",mtu=%d", nicConfig.Mtu.ValueInt64())
+		}
+		params.Add(fmt.Sprintf("net%d", nicConfig.Order.ValueInt64()), fmt.Sprintf("%s=%s,bridge=%s,firewall=%s%s", nicConfig.Type.ValueString(), nicConfig.MacAddress.ValueString(), nicConfig.Bridge.ValueString(), mapBoolToProxmoxString(nicConfig.Firewall.ValueBool()), mtu))
 	}
 }
 
@@ -579,7 +592,7 @@ func findDiskIndex(diskSlice []VmDisk, toBeFound VmDisk) int {
 
 func findDiskIndexHelper(diskSlice []VmDisk, toBeFound VmDisk, startIndex int, endIndex int) int {
 
-	if startIndex < 0 {
+	if startIndex < 0 || len(diskSlice) == 0 {
 		return -1
 	} else if startIndex == endIndex {
 		if areDisksEqual(diskSlice[startIndex], toBeFound) {
