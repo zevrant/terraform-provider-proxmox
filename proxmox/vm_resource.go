@@ -299,7 +299,7 @@ func (r *vmResource) Schema(_ context.Context, _ resource.SchemaRequest, respons
 // Create creates the resource and sets the initial Terraform state.
 func (r *vmResource) Create(ctx context.Context, request resource.CreateRequest, response *resource.CreateResponse) {
 
-	var plan *VmModel
+	var plan VmModel
 	diags := request.Plan.Get(ctx, &plan)
 	response.Diagnostics.Append(diags...)
 	if response.Diagnostics.HasError() {
@@ -354,11 +354,8 @@ func (r *vmResource) Create(ctx context.Context, request resource.CreateRequest,
 		response.Diagnostics.AddError(fmt.Sprintf("Error retrieving vms from node %s with id %d", plan.NodeName.ValueString(), plan.VmId.ValueString()), searchVmError.Error())
 		return
 	}
-
-	newPlan := assignDiskIds(*plan)
-	plan = &newPlan
-	updateVmModelFromResponse(plan, *vmResponse, &ctx)
-
+	plan = assignDiskIds(plan)
+	plan = updateVmModelFromResponse(plan, *vmResponse, &ctx)
 	diags = response.State.Set(ctx, &plan)
 	response.Diagnostics.Append(diags...)
 	if response.Diagnostics.HasError() {
@@ -385,7 +382,7 @@ func (r *vmResource) Read(ctx context.Context, request resource.ReadRequest, res
 			return
 		}
 
-		updateVmModelFromResponse(&plan, *vmResponse, &ctx)
+		plan = updateVmModelFromResponse(plan, *vmResponse, &ctx)
 
 	} else {
 		nodeList, listNodesError := r.client.ListNodes()
@@ -409,7 +406,7 @@ func (r *vmResource) Read(ctx context.Context, request resource.ReadRequest, res
 			if searchVmError == nil {
 				found = true
 				plan.NodeName = types.StringValue(node.Node)
-				updateVmModelFromResponse(&plan, *vmResponse, &ctx)
+				plan = updateVmModelFromResponse(plan, *vmResponse, &ctx)
 				break
 			}
 
@@ -431,7 +428,7 @@ func (r *vmResource) Read(ctx context.Context, request resource.ReadRequest, res
 
 // Update updates the resource and sets the updated Terraform state on success.
 func (r *vmResource) Update(ctx context.Context, request resource.UpdateRequest, response *resource.UpdateResponse) {
-	var plan, state *VmModel
+	var plan, state VmModel
 	response.Diagnostics.Append(request.State.Get(ctx, &state)...)
 	diags := request.Plan.Get(ctx, &plan)
 	response.Diagnostics.Append(diags...)
@@ -468,7 +465,7 @@ func (r *vmResource) Update(ctx context.Context, request resource.UpdateRequest,
 		existingDisk := disks[existingDiskIndex]
 		stateDisk := getDiskFromState(state, getDiskName(plannedDisk))
 
-		if stateDisk == nil {
+		if stateDisk.Size.ValueString() == "" {
 			tflog.Info(ctx, fmt.Sprintf("disk %s not found in the statefile skipping", getDiskName(plannedDisk)))
 			tflog.Info(ctx, fmt.Sprintf("existing disk is %s", getDiskName(existingDisk)))
 			disksToAdd = append(disksToAdd, plannedDisk)
@@ -655,7 +652,7 @@ func (r *vmResource) Update(ctx context.Context, request resource.UpdateRequest,
 		return
 	}
 
-	updateVmModelFromResponse(plan, *vmResponse, &ctx)
+	plan = updateVmModelFromResponse(plan, *vmResponse, &ctx)
 
 	diags = response.State.Set(ctx, &plan)
 	response.Diagnostics.Append(diags...)
@@ -727,7 +724,7 @@ func (r *vmResource) ImportState(ctx context.Context, request resource.ImportSta
 		if searchVmError == nil {
 			found = true
 			plan.NodeName = types.StringValue(node.Node)
-			updateVmModelFromResponse(&plan, *vmResponse, &ctx)
+			plan = updateVmModelFromResponse(plan, *vmResponse, &ctx)
 			break
 		}
 
