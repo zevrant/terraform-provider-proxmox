@@ -101,3 +101,13 @@ type NodeNetworkConfig struct {
 		BridgeStp   string   `json:"bridge_stp,omitempty"`
 	} `json:"data"`
 }
+
+type VmStatus struct {
+	Data VmStatusData `json:"data"`
+}
+
+type VmStatusData struct {
+	Name   string `json:"name"`
+	Agent  int    `json:"agent"`
+	Status string `json:"status"`
+}

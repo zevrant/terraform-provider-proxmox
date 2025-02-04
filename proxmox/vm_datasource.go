@@ -79,6 +79,12 @@ func (d *qemuDataSource) Read(ctx context.Context, request datasource.ReadReques
 		}
 	}
 
+	status, getStatusError := d.client.GetVmStatus(plan.NodeName.ValueString(), plan.VmId.ValueString())
+	if getStatusError != nil {
+		response.Diagnostics.AddError(fmt.Sprintf("Could not get status for VM %s", plan.VmId.ValueString()), getStatusError.Error())
+		return
+	}
+	plan.PowerState = types.StringValue(status)
 	diags = response.State.Set(ctx, &plan)
 	response.Diagnostics.Append(diags...)
 	if response.Diagnostics.HasError() {
@@ -241,9 +247,6 @@ func (d *qemuDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, r
 			"cpu_limit": schema.Int64Attribute{
 				Computed: true,
 			},
-			"auto_start": schema.BoolAttribute{
-				Computed: true,
-			},
 			"bios": schema.StringAttribute{
 				Computed: true,
 			},
@@ -259,6 +262,10 @@ func (d *qemuDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, r
 			},
 			"default_user": schema.StringAttribute{Computed: true},
 			"cloud_init_storage_name": schema.StringAttribute{
+				Computed: true,
+			},
+			"power_state": schema.StringAttribute{
+				Optional: true,
 				Computed: true,
 			},
 		},

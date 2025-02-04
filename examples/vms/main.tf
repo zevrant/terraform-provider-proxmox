@@ -30,13 +30,13 @@ resource proxmox_vm test {
   vm_id = "9001"
   cpu_type = "host"
   boot_order = ["scsi0"]
-  auto_start = false
   host_startup_order = 1
   protection = false
-  nameserver = "10.0.0.8"
+  nameserver = "10.1.0.123"
   start_on_boot = true
   default_user = "zevrant"
   cloud_init_storage_name = "exosDisks"
+  power_state = "running"
   ssh_keys = [
     "ecdsa-sha2-nistp384 AAAAE2VjZHNhLXNoYTItbmlzdHAzODQAAAAIbmlzdHAzODQAAABhBLtOxtriPtNmisKkmfHfCByaTYCHRsDHyzQAi0yL6LUeKybjYExfR6N0xBMcIj6M/b5U3aafjKayX4nMvV7s7/vcrpBfW+WvxOCBWTlhKGNpUmAS9ApFDn51/FTuRgB/YA=="
   ]
@@ -56,6 +56,17 @@ resource proxmox_vm test {
     //Long term recommendation is to use an nfs mount or something that supports RWM
     import_path = "0/alma-base-image-0.0.16.qcow2"
   }
+
+  # disk {
+  #   bus_type = "scsi"
+  #   storage_location = "local-zfs"
+  #   size = "50G"
+  #   order = 1
+  #   import_from = "local"
+  #   //Must be preloaded at this location, full path is /var/lib/vz/images/0/AlmaLinux-9-GenericCloud-latest.x86_64.qcow2
+  #   //Long term recommendation is to use an nfs mount or something that supports RWM
+  #   import_path = "0/alma-base-image-0.0.16.qcow2"
+  # }
 
   network_interface {
     mac_address = "1a:2b:3c:4e:5f:61"
