@@ -255,11 +255,6 @@ func (r *vmResource) Schema(_ context.Context, _ resource.SchemaRequest, respons
 				Computed: true,
 				Default:  int64default.StaticInt64(0),
 			},
-			"auto_start": schema.BoolAttribute{
-				Optional: true,
-				Computed: true,
-				Default:  booldefault.StaticBool(true),
-			},
 			"bios": schema.StringAttribute{
 				Optional: true,
 				Computed: true,
@@ -291,6 +286,11 @@ func (r *vmResource) Schema(_ context.Context, _ resource.SchemaRequest, respons
 				Optional: true,
 				Computed: true,
 				Default:  stringdefault.StaticString("local-zfs"),
+			},
+			"power_state": schema.StringAttribute{
+				Optional: true,
+				Computed: true,
+				Default:  stringdefault.StaticString("stopped"),
 			},
 		},
 	}
@@ -508,6 +508,13 @@ func (r *vmResource) Update(ctx context.Context, request resource.UpdateRequest,
 	var vmCreationError, taskCompletionError error
 
 	tflog.Info(ctx, fmt.Sprintf("There are %d disks to remove", len(disksToBeRemoved)))
+	vmShutdown := len(disksToBeRemoved) > 0 || len(disksToUpdate) > 0 || len(disksToAdd) > 0 || len(disksToResize) > 0
+	if vmShutdown || state.PowerState.ValueString() == "running" && plan.PowerState.ValueString() == "stopped" {
+		shutdownError := shutdownVm(plan.NodeName.ValueString(), plan.VmId.ValueString(), diags, r.client)
+		if shutdownError != nil {
+			return
+		}
+	}
 
 	for _, disk := range disksToBeRemoved {
 		tflog.Info(ctx, fmt.Sprintf("Detaching disk %s%d", disk.BusType.ValueString(), disk.Order.ValueInt64()))
@@ -645,13 +652,20 @@ func (r *vmResource) Update(ctx context.Context, request resource.UpdateRequest,
 		return
 	}
 
+	if vmShutdown || plan.PowerState.ValueString() == "running" || state.PowerState.ValueString() == "stopped" && plan.PowerState.ValueString() == "running" {
+		startError := startVm(plan.NodeName.ValueString(), plan.VmId.ValueString(), diags, r.client)
+		if startError != nil {
+			return
+		}
+		plan.PowerState = types.StringValue("running")
+	}
+
 	vmResponse, searchVmError = r.client.GetVmById(plan.NodeName.ValueString(), plan.VmId.ValueString())
 
 	if searchVmError != nil {
 		diags.AddError(fmt.Sprintf("Error retrieving vms from node %s with id %d", plan.NodeName.ValueString(), plan.VmId.ValueString()), searchVmError.Error())
 		return
 	}
-
 	plan = updateVmModelFromResponse(plan, *vmResponse, &ctx)
 
 	diags = response.State.Set(ctx, &plan)
@@ -667,6 +681,20 @@ func (r *vmResource) Delete(ctx context.Context, request resource.DeleteRequest,
 	var plan VmModel
 	diags := request.State.Get(ctx, &plan)
 	response.Diagnostics.Append(diags...)
+
+	vmStatus, getStatusError := r.client.GetVmStatus(plan.NodeName.ValueString(), plan.VmId.ValueString())
+
+	if getStatusError != nil {
+		diags.AddError("Failed to retrieve VM status prior to deletion", getStatusError.Error())
+		return
+	}
+
+	if vmStatus != "stopped" {
+		shutdownError := shutdownVm(plan.NodeName.ValueString(), plan.VmId.ValueString(), diags, r.client)
+		if shutdownError != nil {
+			return
+		}
+	}
 
 	upid, vmDeletionError := r.client.DeleteVmById(plan.NodeName.ValueString(), plan.VmId.ValueString())
 

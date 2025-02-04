@@ -162,3 +162,81 @@ func (c *Client) ResizeVmDisk(diskResizeRequest url.Values, nodeName string, vmI
 
 	return &diskResizeResponse.Upid, nil
 }
+
+func (c *Client) GetVmStatus(nodeName string, vmId string) (string, error) {
+	request, requestCreationError := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/nodes/%s/qemu/%s/status/current", c.HostURL, nodeName, vmId), nil)
+
+	if requestCreationError != nil {
+		tflog.Error(c.Context, fmt.Sprintf("Failed to create GetVmStatus http request: %s", requestCreationError.Error()))
+		return "", requestCreationError
+	}
+
+	body, responseError := c.doRequest(request, "application/json")
+
+	if responseError != nil {
+		tflog.Error(c.Context, fmt.Sprintf("Failed to get status of VM %s, from node %s: %s", vmId, nodeName, responseError.Error()))
+		return "", responseError
+	}
+
+	var vmStatus = VmStatus{}
+	unmarshallingError := json.Unmarshal(body, &vmStatus)
+
+	if unmarshallingError != nil {
+		tflog.Error(c.Context, fmt.Sprintf("Failed to unmarshal get vm status response: %s", unmarshallingError.Error()))
+		return "", unmarshallingError
+	}
+
+	return vmStatus.Data.Status, nil
+}
+
+func (c *Client) StartVm(nodeName string, vmId string) (string, error) {
+	request, requestCreationError := http.NewRequest(http.MethodPost, fmt.Sprintf("%s/nodes/%s/qemu/%s/status/start", c.HostURL, nodeName, vmId), nil)
+
+	if requestCreationError != nil {
+		tflog.Error(c.Context, fmt.Sprintf("Failed to create Start Vm Request http request: %s", requestCreationError.Error()))
+		return "", requestCreationError
+	}
+
+	body, responseError := c.doRequest(request, FORM_URL_ENCODED)
+
+	if responseError != nil {
+		tflog.Error(c.Context, fmt.Sprintf("Failed to start VM %s, on node %s: %s", vmId, nodeName, responseError.Error()))
+		return "", responseError
+	}
+
+	var vmStatus = TaskCreationResponse{}
+	unmarshallingError := json.Unmarshal(body, &vmStatus)
+
+	if unmarshallingError != nil {
+		tflog.Error(c.Context, fmt.Sprintf("Failed to unmarshal start vm response: %s", unmarshallingError.Error()))
+		return "", unmarshallingError
+	}
+
+	return vmStatus.Upid, nil
+}
+
+func (c *Client) ShutdownVm(nodeName string, vmId string) (string, error) {
+	request, requestCreationError := http.NewRequest(http.MethodPost, fmt.Sprintf("%s/nodes/%s/qemu/%s/status/shutdown", c.HostURL, nodeName, vmId), nil)
+
+	if requestCreationError != nil {
+		tflog.Error(c.Context, fmt.Sprintf("Failed to create Shutdown Vm Request http request: %s", requestCreationError.Error()))
+		return "", requestCreationError
+	}
+
+	body, responseError := c.doRequest(request, FORM_URL_ENCODED)
+
+	if responseError != nil {
+		tflog.Error(c.Context, fmt.Sprintf("Failed to shutdown VM %s, on node %s: %s", vmId, nodeName, responseError.Error()))
+		return "", responseError
+	}
+
+	var vmStatus = TaskCreationResponse{}
+	unmarshallingError := json.Unmarshal(body, &vmStatus)
+
+	if unmarshallingError != nil {
+		tflog.Error(c.Context, fmt.Sprintf("Failed to unmarshal shutdown vm response: %s", unmarshallingError.Error()))
+		return "", unmarshallingError
+	}
+
+	return vmStatus.Upid, nil
+}
