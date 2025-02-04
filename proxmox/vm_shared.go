@@ -85,7 +85,7 @@ type VmIpConfig struct {
 	Order     types.Int64  `tfsdk:"order"`
 }
 
-func updateVmModelFromResponse(vmModel *VmModel, response proxmox_client.QemuResponse, tfContext *context.Context) {
+func updateVmModelFromResponse(vmModel VmModel, response proxmox_client.QemuResponse, tfContext *context.Context) VmModel {
 	memory, _ := strconv.ParseInt(response.Data.Memory, 10, 64)
 	tags := strings.Split(strings.Trim(response.Data.Tags, " "), ";")
 
@@ -129,6 +129,8 @@ func updateVmModelFromResponse(vmModel *VmModel, response proxmox_client.QemuRes
 	vmModel.Disks = updateDisksFromQemuResponse(response.Data.OtherFields, vmModel)
 	vmModel.NetworkInterfaces = mapNetworkInterfacesFromQemuResponse(response.Data.OtherFields)
 	vmModel.IpConfigurations = mapIpConfigsFromQemuResponse(response.Data.OtherFields)
+
+	return vmModel
 }
 
 func mapKeyValuePairsToMap(pairs []string) map[string]string {
@@ -174,7 +176,7 @@ func assignDiskIds(vmModel VmModel) VmModel {
 	return vmModel
 }
 
-func updateDisksFromQemuResponse(otherFields map[string]interface{}, vmModel *VmModel) []VmDisk {
+func updateDisksFromQemuResponse(otherFields map[string]interface{}, vmModel VmModel) []VmDisk {
 	var keySlice = getDiskKeysFromJsonDict(otherFields)
 	var disks []VmDisk
 	for order, key := range keySlice {
@@ -314,7 +316,7 @@ func mapIpConfigsFromQemuResponse(otherFields map[string]interface{}) []VmIpConf
 	return vmIpConfigs
 }
 
-func createVmRequest(vmModel *VmModel, tfContext *context.Context, cloudInitEnabled bool, createNew bool) url.Values {
+func createVmRequest(vmModel VmModel, tfContext *context.Context, cloudInitEnabled bool, createNew bool) url.Values {
 	params := url.Values{}
 	params.Add("vmid", vmModel.VmId.ValueString())
 	params.Add("name", vmModel.Name.ValueString())
@@ -353,6 +355,12 @@ func createVmRequest(vmModel *VmModel, tfContext *context.Context, cloudInitEnab
 		}
 	}
 
+	onBoot := "0"
+
+	if vmModel.OnBoot.ValueBool() {
+		onBoot = "1"
+	}
+
 	params.Add("acpi", mapBoolToProxmoxString(vmModel.Acpi.ValueBool()))
 	params.Add("agent", mapBoolToProxmoxString(vmModel.Agent.ValueBool()))
 	params.Add("autostart", mapBoolToProxmoxString(vmModel.AutoStart.ValueBool()))
@@ -379,6 +387,7 @@ func createVmRequest(vmModel *VmModel, tfContext *context.Context, cloudInitEnab
 	params.Add("startup", fmt.Sprintf("order=%d", vmModel.HostStartupOrder.ValueInt64()))
 	params.Add("protection", mapBoolToProxmoxString(vmModel.Protection.ValueBool()))
 	params.Add("ostype", vmModel.OsType.ValueString())
+	params.Add("onboot", onBoot)
 	if vmModel.DefaultUser.ValueString() != "" {
 		params.Add("ciuser", vmModel.DefaultUser.ValueString())
 	}
@@ -386,7 +395,7 @@ func createVmRequest(vmModel *VmModel, tfContext *context.Context, cloudInitEnab
 	if createNew {
 		attachVmDiskRequests(vmModel.Disks, &params, vmModel.VmId.ValueString(), cloudInitEnabled, createNew)
 	}
-	attachVmNicRequests(*vmModel, &params)
+	attachVmNicRequests(vmModel, &params)
 	return params
 }
 
@@ -509,13 +518,13 @@ func diskNeedsUpdate(plannedDisk VmDisk, existingDisk VmDisk) bool {
 	return !isEqual
 }
 
-func getDiskFromState(state *VmModel, diskName string) *VmDisk {
+func getDiskFromState(state VmModel, diskName string) VmDisk {
 	for _, disk := range state.Disks {
 		if getDiskName(disk) == diskName {
-			return &disk
+			return disk
 		}
 	}
-	return nil
+	return VmDisk{}
 }
 
 func getDiskName(disk VmDisk) string {

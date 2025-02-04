@@ -30,14 +30,9 @@ func (d *qemuDataSource) Metadata(ctx context.Context, request datasource.Metada
 }
 
 func (d *qemuDataSource) Read(ctx context.Context, request datasource.ReadRequest, response *datasource.ReadResponse) {
-	var plan *VmModel
+	var plan VmModel
 	diags := request.Config.Get(ctx, &plan)
 	response.Diagnostics.Append(diags...)
-
-	if plan == nil {
-		response.Diagnostics.AddError("no datasource data passed in", "vm name is nil")
-		return
-	}
 
 	tflog.Debug(ctx, fmt.Sprintf("Node name is %s", plan.NodeName.ValueString()))
 
@@ -49,7 +44,7 @@ func (d *qemuDataSource) Read(ctx context.Context, request datasource.ReadReques
 			return
 		}
 
-		updateVmModelFromResponse(plan, *vmResponse, &ctx)
+		plan = updateVmModelFromResponse(plan, *vmResponse, &ctx)
 	} else {
 		nodeList, listNodesError := d.client.ListNodes()
 
@@ -72,7 +67,7 @@ func (d *qemuDataSource) Read(ctx context.Context, request datasource.ReadReques
 			if searchVmError == nil {
 				found = true
 				plan.NodeName = types.StringValue(node.Node)
-				updateVmModelFromResponse(plan, *vmResponse, &ctx)
+				plan = updateVmModelFromResponse(plan, *vmResponse, &ctx)
 				break
 			}
 
@@ -84,7 +79,7 @@ func (d *qemuDataSource) Read(ctx context.Context, request datasource.ReadReques
 		}
 	}
 
-	diags = response.State.Set(ctx, plan)
+	diags = response.State.Set(ctx, &plan)
 	response.Diagnostics.Append(diags...)
 	if response.Diagnostics.HasError() {
 		return
