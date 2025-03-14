@@ -356,6 +356,21 @@ func (r *vmResource) Create(ctx context.Context, request resource.CreateRequest,
 	}
 	plan = assignDiskIds(plan)
 	plan = updateVmModelFromResponse(plan, *vmResponse, &ctx)
+	diags = response.State.Set(ctx, &plan) //checkpoint
+	vmStatus, getStatusError := r.client.GetVmStatus(plan.NodeName.ValueString(), plan.VmId.ValueString())
+
+	if getStatusError != nil {
+		diags.AddError("Failed to retrieve vm statius", getStatusError.Error())
+		return
+	}
+
+	if plan.PowerState.ValueString() == "running" && vmStatus != "running" {
+		startVmError := startVm(plan.NodeName.ValueString(), plan.VmId.ValueString(), response.Diagnostics, r.client)
+		if startVmError != nil {
+			return
+		}
+	}
+
 	diags = response.State.Set(ctx, &plan)
 	response.Diagnostics.Append(diags...)
 	if response.Diagnostics.HasError() {
