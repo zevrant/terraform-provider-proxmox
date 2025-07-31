@@ -110,7 +110,7 @@ func assignDiskIds(vmModel VmModel) VmModel {
 func updateDisksFromQemuResponse(otherFields map[string]interface{}, vmModel VmModel) []VmDisk {
 	var keySlice = getDiskKeysFromJsonDict(otherFields)
 	var disks []VmDisk
-	for order, key := range keySlice {
+	for _, key := range keySlice {
 		disk := otherFields[key].(string)
 
 		diskParts := strings.Split(disk, ",")
@@ -127,12 +127,12 @@ func updateDisksFromQemuResponse(otherFields map[string]interface{}, vmModel VmM
 			vmModel.CloudInitStorageName = types.StringValue(strings.Split(diskParts[0], ":")[0])
 			continue
 		}
-
+		order, _ := strconv.Atoi(key[4:len(key)])
 		//for _, plannedDisk := range vmModel.Disks {
 		//	if plannedDisk.BusType.ValueString() == key[:len("scsi")] && plannedDisk.Order.ValueInt64() == int64(order) && plannedDisk.StorageLocation.ValueString() == storageLocation {
 		newVmDisk := VmDisk{
 			Id:              types.Int64Value(diskNumber),
-			BusType:         types.StringValue(key[:len("scsi")]),
+			BusType:         types.StringValue(key[:4]),
 			StorageLocation: types.StringValue(storageLocation),
 			IoThread:        types.BoolValue(diskFieldMap["iothread"] == "1"),
 			Size:            types.StringValue(diskFieldMap["size"]),
@@ -445,6 +445,8 @@ func diskNeedsUpdate(plannedDisk VmDisk, existingDisk VmDisk) bool {
 	isEqual = isEqual && plannedDisk.Discard.ValueBool() == existingDisk.Discard.ValueBool()
 	isEqual = isEqual && plannedDisk.Backup.ValueBool() == existingDisk.Backup.ValueBool()
 	isEqual = isEqual && plannedDisk.StorageLocation.ValueString() == existingDisk.StorageLocation.ValueString()
+	isEqual = isEqual && plannedDisk.ImportFrom.ValueString() == existingDisk.ImportFrom.ValueString()
+	isEqual = isEqual && plannedDisk.Path.ValueString() == existingDisk.Path.ValueString()
 	return !isEqual
 }
 
@@ -566,7 +568,7 @@ func areDisksEqual(disk1 VmDisk, disk2 VmDisk) bool {
 	fmt.Printf("ID %d %d\n", disk1.Order.ValueInt64(), disk2.Order.ValueInt64())
 	fmt.Printf("StorageLocation %s %s\n", disk1.StorageLocation.ValueString(), disk2.StorageLocation.ValueString())
 	isEqual := disk1.BusType.ValueString() == disk2.BusType.ValueString()
-	isEqual = isEqual && disk1.Id.ValueInt64() == disk2.Id.ValueInt64()
+	isEqual = isEqual && disk1.Order.ValueInt64() == disk2.Order.ValueInt64()
 	isEqual = isEqual && disk1.StorageLocation.ValueString() == disk2.StorageLocation.ValueString()
 	return isEqual
 }

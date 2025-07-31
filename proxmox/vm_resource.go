@@ -8,13 +8,14 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64default"
-	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"terraform-provider-proxmox/proxmox_client"
@@ -72,10 +73,16 @@ func (r *vmResource) Schema(_ context.Context, _ resource.SchemaRequest, respons
 				NestedObject: schema.NestedBlockObject{
 					Attributes: map[string]schema.Attribute{
 						"id": schema.Int64Attribute{
-							Computed: true,
-							PlanModifiers: []planmodifier.Int64{
-								int64planmodifier.UseStateForUnknown(),
-							},
+							CustomType:          nil,
+							Required:            false,
+							Optional:            false,
+							Computed:            true,
+							Sensitive:           false,
+							Description:         "",
+							MarkdownDescription: "",
+							DeprecationMessage:  "",
+							PlanModifiers:       []planmodifier.Int64{},
+							Default:             nil,
 						},
 						"bus_type": schema.StringAttribute{
 							Optional: true,
@@ -133,11 +140,17 @@ func (r *vmResource) Schema(_ context.Context, _ resource.SchemaRequest, respons
 							Optional: true,
 							Computed: true,
 							Default:  stringdefault.StaticString(""),
+							PlanModifiers: []planmodifier.String{
+								stringplanmodifier.UseStateForUnknown(),
+							},
 						},
 						"import_path": schema.StringAttribute{
 							Optional: true,
 							Computed: true,
 							Default:  stringdefault.StaticString(""),
+							PlanModifiers: []planmodifier.String{
+								stringplanmodifier.UseStateForUnknown(),
+							},
 						},
 					},
 				},
@@ -522,6 +535,15 @@ func (r *vmResource) Update(ctx context.Context, request resource.UpdateRequest,
 	var upid *string
 	var vmCreationError, taskCompletionError error
 
+	if len(state.Disks) != len(plan.Disks) {
+		for _, stateDisk := range state.Disks {
+			stateIndex := findDiskIndex(plan.Disks, stateDisk)
+			if stateIndex == -1 {
+				disksToBeRemoved = append(disksToBeRemoved, stateDisk)
+			}
+		}
+	}
+
 	tflog.Info(ctx, fmt.Sprintf("There are %d disks to remove", len(disksToBeRemoved)))
 	vmShutdown := len(disksToBeRemoved) > 0 || len(disksToUpdate) > 0 || len(disksToAdd) > 0 || len(disksToResize) > 0
 	if vmShutdown || state.PowerState.ValueString() == "running" && plan.PowerState.ValueString() == "stopped" {
@@ -682,6 +704,16 @@ func (r *vmResource) Update(ctx context.Context, request resource.UpdateRequest,
 		return
 	}
 	plan = updateVmModelFromResponse(plan, *vmResponse, &ctx)
+	sort.Slice(plan.Disks, func(i int, j int) bool {
+		return plan.Disks[i].Order.ValueInt64() < plan.Disks[j].Order.ValueInt64()
+	})
+	for i, disk := range plan.Disks {
+		index := findDiskIndex(state.Disks, disk)
+		if index != -1 && (state.Disks[index].Path.ValueString() != "" || state.Disks[index].ImportFrom.ValueString() != "") {
+			plan.Disks[i].Path = state.Disks[index].Path
+			plan.Disks[i].ImportFrom = state.Disks[index].ImportFrom
+		}
+	}
 
 	diags = response.State.Set(ctx, &plan)
 	response.Diagnostics.Append(diags...)

@@ -27,7 +27,7 @@ resource proxmox_vm test {
   os_type = "l26"
   description = "terraform testing vm"
   node_name = "proxmox-03"
-  vm_id = "9001"
+  vm_id = "9999"
   cpu_type = "host"
   boot_order = ["scsi0"]
   host_startup_order = 1
@@ -54,7 +54,7 @@ resource proxmox_vm test {
     import_from = "local"
     //Must be preloaded at this location, full path is /var/lib/vz/images/0/AlmaLinux-9-GenericCloud-latest.x86_64.qcow2
     //Long term recommendation is to use an nfs mount or something that supports RWM
-    import_path = "0/alma-base-image-0.0.16.qcow2"
+    import_path = "0/alma-base-image-0.0.61.qcow2"
   }
 
   disk {
@@ -65,8 +65,21 @@ resource proxmox_vm test {
     import_from = "local"
     //Must be preloaded at this location, full path is /var/lib/vz/images/0/AlmaLinux-9-GenericCloud-latest.x86_64.qcow2
     //Long term recommendation is to use an nfs mount or something that supports RWM
+    import_path = "0/alma-base-image-0.0.61.qcow2"
+  }
+
+  disk {
+    bus_type = "scsi"
+    storage_location = "local-zfs"
+    size = "51G"
+    order = 2
+    # import_from = "local"
+    //Must be preloaded at this location, full path is /var/lib/vz/images/0/AlmaLinux-9-GenericCloud-latest.x86_64.qcow2
+    //Long term recommendation is to use an nfs mount or something that supports RWM
     # import_path = "0/alma-base-image-0.0.16.qcow2"
   }
+
+
 
   network_interface {
     mac_address = "1a:2b:3c:4e:5f:61"
