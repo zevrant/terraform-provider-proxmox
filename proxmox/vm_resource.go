@@ -364,7 +364,7 @@ func (r *vmResource) Create(ctx context.Context, request resource.CreateRequest,
 	vmResponse, searchVmError := r.client.GetVmById(plan.NodeName.ValueString(), plan.VmId.ValueString())
 
 	if searchVmError != nil {
-		response.Diagnostics.AddError(fmt.Sprintf("Error retrieving vms from node %s with id %d", plan.NodeName.ValueString(), plan.VmId.ValueString()), searchVmError.Error())
+		response.Diagnostics.AddError(fmt.Sprintf("Error retrieving vms from node %s with id %s", plan.NodeName.ValueString(), plan.VmId.ValueString()), searchVmError.Error())
 		return
 	}
 	plan = assignDiskIds(plan)
@@ -467,7 +467,7 @@ func (r *vmResource) Update(ctx context.Context, request resource.UpdateRequest,
 	vmResponse, searchVmError := r.client.GetVmById(plan.NodeName.ValueString(), plan.VmId.ValueString())
 
 	if searchVmError != nil {
-		response.Diagnostics.AddError(fmt.Sprintf("Error retrieving vms from node %s with id %d", plan.NodeName.ValueString(), plan.VmId.ValueString()), searchVmError.Error())
+		response.Diagnostics.AddError(fmt.Sprintf("Error retrieving vms from node %s with id %s", plan.NodeName.ValueString(), plan.VmId.ValueString()), searchVmError.Error())
 		return
 	}
 
@@ -700,7 +700,7 @@ func (r *vmResource) Update(ctx context.Context, request resource.UpdateRequest,
 	vmResponse, searchVmError = r.client.GetVmById(plan.NodeName.ValueString(), plan.VmId.ValueString())
 
 	if searchVmError != nil {
-		diags.AddError(fmt.Sprintf("Error retrieving vms from node %s with id %d", plan.NodeName.ValueString(), plan.VmId.ValueString()), searchVmError.Error())
+		diags.AddError(fmt.Sprintf("Error retrieving vms from node %s with id %s", plan.NodeName.ValueString(), plan.VmId.ValueString()), searchVmError.Error())
 		return
 	}
 	plan = updateVmModelFromResponse(plan, *vmResponse, &ctx)
@@ -746,7 +746,7 @@ func (r *vmResource) Delete(ctx context.Context, request resource.DeleteRequest,
 	upid, vmDeletionError := r.client.DeleteVmById(plan.NodeName.ValueString(), plan.VmId.ValueString())
 
 	if vmDeletionError != nil {
-		response.Diagnostics.AddError(fmt.Sprintf("Failed to delete proxmox vm %d, error response received", plan.VmId.ValueString()), vmDeletionError.Error())
+		response.Diagnostics.AddError(fmt.Sprintf("Failed to delete proxmox vm %s, error response received", plan.VmId.ValueString()), vmDeletionError.Error())
 		return
 	}
 
