@@ -41,7 +41,7 @@ resource proxmox_vm test {
     "ecdsa-sha2-nistp384 AAAAE2VjZHNhLXNoYTItbmlzdHAzODQAAAAIbmlzdHAzODQAAABhBLtOxtriPtNmisKkmfHfCByaTYCHRsDHyzQAi0yL6LUeKybjYExfR6N0xBMcIj6M/b5U3aafjKayX4nMvV7s7/vcrpBfW+WvxOCBWTlhKGNpUmAS9ApFDn51/FTuRgB/YA=="
   ]
   ip_config {
-    ip_address = "10.1.0.3/24"
+    ip_address = "10.1.0.100/24"
     gateway = "10.1.0.1"
     order = 0
   }
@@ -57,16 +57,16 @@ resource proxmox_vm test {
     import_path = "0/alma-base-image-0.0.16.qcow2"
   }
 
-  # disk {
-  #   bus_type = "scsi"
-  #   storage_location = "local-zfs"
-  #   size = "50G"
-  #   order = 1
-  #   import_from = "local"
-  #   //Must be preloaded at this location, full path is /var/lib/vz/images/0/AlmaLinux-9-GenericCloud-latest.x86_64.qcow2
-  #   //Long term recommendation is to use an nfs mount or something that supports RWM
-  #   import_path = "0/alma-base-image-0.0.16.qcow2"
-  # }
+  disk {
+    bus_type = "scsi"
+    storage_location = "local-zfs"
+    size = "50G"
+    order = 1
+    import_from = "local"
+    //Must be preloaded at this location, full path is /var/lib/vz/images/0/AlmaLinux-9-GenericCloud-latest.x86_64.qcow2
+    //Long term recommendation is to use an nfs mount or something that supports RWM
+    # import_path = "0/alma-base-image-0.0.16.qcow2"
+  }
 
   network_interface {
     mac_address = "1a:2b:3c:4e:5f:61"
