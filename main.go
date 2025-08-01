@@ -9,6 +9,6 @@ import (
 func main() {
 	providerserver.Serve(context.Background(), proxmox.New, providerserver.ServeOpts{
 		Address: "app.terraform.io/zevrant-services/proxmox",
-		Debug:   true,
+		Debug:   false,
 	})
 }
