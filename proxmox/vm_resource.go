@@ -3,6 +3,12 @@ package proxmox
 import (
 	"context"
 	"fmt"
+	"net/url"
+	"sort"
+	"strconv"
+	"strings"
+	"terraform-provider-proxmox/proxmox_client"
+
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -14,11 +20,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
-	"net/url"
-	"sort"
-	"strconv"
-	"strings"
-	"terraform-provider-proxmox/proxmox_client"
 )
 
 var (
@@ -714,7 +715,7 @@ func (r *vmResource) Update(ctx context.Context, request resource.UpdateRequest,
 			plan.Disks[i].ImportFrom = state.Disks[index].ImportFrom
 		}
 	}
-
+	plan.Disks = disks
 	diags = response.State.Set(ctx, &plan)
 	response.Diagnostics.Append(diags...)
 	if response.Diagnostics.HasError() {
