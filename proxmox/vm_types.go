@@ -2,7 +2,7 @@ package proxmox
 
 import "github.com/hashicorp/terraform-plugin-framework/types"
 
-const NETWORK_INTERFACE_TYPES = "e1000 | e1000-82540em | e1000-82544gc | e1000-82545em | e1000e | i82551 | i82557b | i82559er | ne2k_isa | ne2k_pci | pcnet | rtl8139 | virtio | vmxnet3"
+const NetworkInterfaceTypes = "e1000 | e1000-82540em | e1000-82544gc | e1000-82545em | e1000e | i82551 | i82557b | i82559er | ne2k_isa | ne2k_pci | pcnet | rtl8139 | virtio | vmxnet3"
 
 type VmModel struct {
 	Acpi                 types.Bool           `tfsdk:"acpi"`

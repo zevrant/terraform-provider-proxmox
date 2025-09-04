@@ -175,7 +175,7 @@ func mapNetworkInterfacesFromQemuResponse(otherFields map[string]interface{}) []
 	}
 
 	sort.Strings(keySlice)
-	var networkInterfaceTypes []string = strings.Split(NETWORK_INTERFACE_TYPES, " | ")
+	var networkInterfaceTypes []string = strings.Split(NetworkInterfaceTypes, " | ")
 	for order, key := range keySlice {
 		if !strings.Contains(key, "net") {
 			continue
