@@ -723,7 +723,12 @@ func (r *vmResource) Update(ctx context.Context, request resource.UpdateRequest,
 			plan.Disks[i].ImportFrom = state.Disks[index].ImportFrom
 		}
 	}
-	current.Disks = plan.Disks // Need a more accurate way to get info from disk in proxmox
+	for _, disk := range disks {
+		if disk.Id.IsUnknown() {
+			print("Here!!!")
+		}
+	}
+	current.Disks = disks // Need a more accurate way to get info from disk in proxmox
 	response.Diagnostics.Append(response.State.Set(ctx, &current)...)
 	if response.Diagnostics.HasError() {
 		return
