@@ -2,9 +2,10 @@ package proxmox
 
 import (
 	"context"
+	"terraform-provider-proxmox/proxmox_client"
+
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
-	"terraform-provider-proxmox/proxmox_client"
 
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
@@ -31,6 +32,7 @@ func (p *proxmoxProvider) DataSources(_ context.Context) []func() datasource.Dat
 		NewVMDataSource,
 		NewSdnZoneDatasource,
 		NewNodeDataSource,
+		NewHealthCheckSystemdDatasource,
 	}
 }
 

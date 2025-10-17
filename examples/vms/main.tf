@@ -1,10 +1,14 @@
 terraform {
+  required_version = "~> 1.5"
   required_providers {
+    http-client = {
+      source  = "dmachard/http-client"
+      version = "0.3.0"
+    }
     proxmox = {
       source = "app.terraform.io/zevrant-services/proxmox"
     }
   }
-
 }
 
 provider "proxmox" {
@@ -32,7 +36,7 @@ resource proxmox_vm test {
   boot_order = ["scsi0"]
   host_startup_order = 1
   protection = false
-  nameserver = "10.1.0.123"
+  nameserver = "10.1.0.8"
   start_on_boot = true
   default_user = "zevrant"
   cloud_init_storage_name = "exosDisks"
@@ -54,7 +58,7 @@ resource proxmox_vm test {
     import_from = "local"
     //Must be preloaded at this location, full path is /var/lib/vz/images/0/AlmaLinux-9-GenericCloud-latest.x86_64.qcow2
     //Long term recommendation is to use an nfs mount or something that supports RWM
-    import_path = "0/alma-base-image-0.0.66.qcow2"
+    import_path = "0/alma-base-image-0.0.68.qcow2"
   }
 
   disk {
@@ -87,5 +91,35 @@ resource proxmox_vm test {
     firewall = true
     order = 0
     mtu = 1412
+  }
+
+
+}
+
+
+
+check vm_agent_check {
+  data "http" "vm_agent_metrics" {
+    url = "http://${split("/", proxmox_vm.test.ip_config[0].ip_address)[0]}:9100/metrics"
+    request_timeout_ms = 1000
+    retry {
+      attempts = 5
+      min_delay_ms = 5000
+      max_delay_ms = 10000
+    }
+
+    depends_on = []
+  }
+  assert {
+    condition = data.http.vm_agent_metrics.status_code == 200
+    error_message = "Vm metrics could not be retrieved, is node exporter running?"
+  }
+  assert {
+    condition = strcontains(data.http.vm_agent_metrics.response_body, "node_systemd_unit_state")
+    error_message = "The target VM does not have the systemd collector enabled, status could not be checked"
+  }
+  assert {
+    condition = strcontains(data.http.vm_agent_metrics.response_body, "zs-vm-agent")
+    error_message = "The VM configuration agent couldn't be reached please check system configuration and logs"
   }
 }

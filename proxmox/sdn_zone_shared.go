@@ -3,10 +3,11 @@ package proxmox
 import (
 	"context"
 	"fmt"
-	"github.com/hashicorp/terraform-plugin-framework/types"
 	"net/url"
 	"strings"
 	"terraform-provider-proxmox/proxmox_client"
+
+	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
 type sdnZone struct {
@@ -19,7 +20,7 @@ type sdnZone struct {
 
 func updateSdnZoneFromResponse(zone *sdnZone, tfContext context.Context, response proxmox_client.SdnZoneResponse) {
 	nodes, _ := types.ListValueFrom(tfContext, types.StringType, strings.Split(response.Data.Nodes, ","))
-	peers, _ := types.ListValueFrom(tfContext, types.StringType, strings.Split(strings.Trim(response.Data.Peers, ","), " "))
+	peers, _ := types.ListValueFrom(tfContext, types.StringType, strings.Split(strings.Trim(response.Data.Peers, " "), ","))
 	zone.Zone = types.StringValue(response.Data.Zone)
 	zone.Ipam = types.StringValue(response.Data.Ipam)
 	zone.Type = types.StringValue(response.Data.Type)
@@ -34,8 +35,9 @@ func assembleCreateSdnZoneRequest(request *url.Values, sdnZone sdnZone, tfContex
 	for _, peer := range peersList {
 		if peers == "" {
 			peers += peer.ValueString()
+		} else {
+			peers = fmt.Sprintf("%s,%s", peers, peer.ValueString())
 		}
-		peers = fmt.Sprintf(",%s", peer.ValueString())
 	}
 
 	nodesList := make([]types.String, 0, len(sdnZone.Nodes.Elements()))
