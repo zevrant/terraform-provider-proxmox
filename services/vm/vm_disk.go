@@ -22,7 +22,6 @@ type DiskService interface {
 	UpdateDisksFromQemuResponse(otherFields map[string]interface{}, vmModel *proxmoxTypes.VmModel, plan *proxmoxTypes.VmModel) []proxmoxTypes.VmDisk
 	AttachVmDiskRequests(disks []proxmoxTypes.VmDisk, params *url.Values, vmId *string, cloudInitEnabled bool, createNew bool)
 	GetDiskKeysFromJsonDict(dict map[string]interface{}) []string
-	DiskNeedsUpdate(plannedDisk proxmoxTypes.VmDisk, existingDisk proxmoxTypes.VmDisk) bool
 	GetDiskFromState(state proxmoxTypes.VmModel, diskName string) proxmoxTypes.VmDisk
 	MapPlannedDisksToExisting(plannedDisks []proxmoxTypes.VmDisk, existingDisks []proxmoxTypes.VmDisk) (map[int]int, []proxmoxTypes.VmDisk)
 	FindDiskIndex(diskSlice []proxmoxTypes.VmDisk, toBeFound proxmoxTypes.VmDisk) int
@@ -56,34 +55,6 @@ func NewDiskService(tfCtx context.Context, client proxmox_client.ProxmoxClient, 
 
 	return &diskService
 }
-
-//func (diskService *DiskServiceImpl) AssignDiskIds(vmModel proxmoxTypes.VmModel) proxmoxTypes.VmModel {
-//	vmDisks := vmModel.Disks
-//
-//	storageLocations := make([]string, 0)
-//
-//	for _, disk := range vmDisks {
-//		if !slices.Contains(storageLocations, disk.StorageLocation.ValueString()) {
-//			storageLocations = append(storageLocations, disk.StorageLocation.ValueString())
-//		}
-//	}
-//
-//	storageIdMapping := make(map[string]int64)
-//
-//	for _, location := range storageLocations {
-//		storageIdMapping[location] = int64(0)
-//	}
-//
-//	newDisks := make([]proxmoxTypes.VmDisk, 0)
-//	for _, disk := range vmDisks {
-//		currentId := storageIdMapping[disk.StorageLocation.ValueString()]
-//		storageIdMapping[disk.StorageLocation.ValueString()] = currentId + 1
-//		disk.Id = types.Int64Value(currentId)
-//		newDisks = append(newDisks, disk)
-//	}
-//	vmModel.Disks = newDisks
-//	return vmModel
-//}
 
 func (diskService *DiskServiceImpl) UpdateDisksFromQemuResponse(otherFields map[string]interface{}, vmModel *proxmoxTypes.VmModel, plan *proxmoxTypes.VmModel) []proxmoxTypes.VmDisk {
 	var keySlice = diskService.GetDiskKeysFromJsonDict(otherFields)
@@ -186,24 +157,6 @@ func (diskService *DiskServiceImpl) GetDiskKeysFromJsonDict(dict map[string]inte
 
 	sort.Strings(keySlice)
 	return keySlice
-}
-
-func (diskService *DiskServiceImpl) DiskNeedsUpdate(plannedDisk proxmoxTypes.VmDisk, existingDisk proxmoxTypes.VmDisk) bool {
-	isEqual := plannedDisk.BusType.ValueString() == existingDisk.BusType.ValueString()
-	isEqual = isEqual && plannedDisk.Order.ValueInt64() == existingDisk.Order.ValueInt64()
-	isEqual = isEqual && plannedDisk.AsyncIo.ValueString() == existingDisk.AsyncIo.ValueString()
-	isEqual = isEqual && plannedDisk.Size.ValueString() == existingDisk.Size.ValueString()
-	isEqual = isEqual && plannedDisk.Cache.ValueString() == existingDisk.Cache.ValueString()
-	isEqual = isEqual && plannedDisk.IoThread.ValueBool() == existingDisk.IoThread.ValueBool()
-	isEqual = isEqual && plannedDisk.SsdEmulation.ValueBool() == existingDisk.SsdEmulation.ValueBool()
-	isEqual = isEqual && plannedDisk.ReadOnly.ValueBool() == existingDisk.ReadOnly.ValueBool()
-	isEqual = isEqual && plannedDisk.Replicate.ValueBool() == existingDisk.Replicate.ValueBool()
-	isEqual = isEqual && plannedDisk.Discard.ValueBool() == existingDisk.Discard.ValueBool()
-	isEqual = isEqual && plannedDisk.Backup.ValueBool() == existingDisk.Backup.ValueBool()
-	isEqual = isEqual && plannedDisk.StorageLocation.ValueString() == existingDisk.StorageLocation.ValueString()
-	isEqual = isEqual && plannedDisk.ImportFrom.ValueString() == existingDisk.ImportFrom.ValueString()
-	isEqual = isEqual && plannedDisk.Path.ValueString() == existingDisk.Path.ValueString()
-	return !isEqual
 }
 
 func (diskService *DiskServiceImpl) GetDiskFromState(state proxmoxTypes.VmModel, diskName string) proxmoxTypes.VmDisk {
