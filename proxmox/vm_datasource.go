@@ -3,12 +3,15 @@ package proxmox
 import (
 	"context"
 	"fmt"
+	"terraform-provider-proxmox/proxmox_client"
+	"terraform-provider-proxmox/services"
+	"terraform-provider-proxmox/services/vm"
+	proxmoxTypes "terraform-provider-proxmox/types"
+
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-log/tflog"
-	"strings"
-	"terraform-provider-proxmox/proxmox_client"
 )
 
 // Ensure the implementation satisfies the expected interfaces.
@@ -18,7 +21,8 @@ var (
 )
 
 type qemuDataSource struct {
-	client *proxmox_client.Client
+	vmService     vm.VmService
+	vmDiskService vm.DiskService
 }
 
 func NewVMDataSource() datasource.DataSource {
@@ -30,62 +34,30 @@ func (d *qemuDataSource) Metadata(ctx context.Context, request datasource.Metada
 }
 
 func (d *qemuDataSource) Read(ctx context.Context, request datasource.ReadRequest, response *datasource.ReadResponse) {
-	var plan VmModel
+	var plan proxmoxTypes.VmModel
+	var currentState proxmoxTypes.VmModel = proxmoxTypes.VmModel{}
 	diags := request.Config.Get(ctx, &plan)
 	response.Diagnostics.Append(diags...)
 
 	tflog.Debug(ctx, fmt.Sprintf("Node name is %s", plan.NodeName.ValueString()))
 
-	if !plan.NodeName.IsNull() {
-		vmResponse, searchVmError := d.client.GetVmById(plan.NodeName.ValueString(), plan.VmId.ValueString())
+	qemuResponse, nodeName, getVmError := d.vmService.GetVm(plan.NodeName.ValueStringPointer(), plan.VmId.ValueStringPointer())
 
-		if searchVmError != nil {
-			response.Diagnostics.AddError(fmt.Sprintf("Error retrieving vms from node %s", plan.NodeName.ValueString()), searchVmError.Error())
-			return
-		}
-
-		plan = updateVmModelFromResponse(plan, *vmResponse, &ctx)
-	} else {
-		nodeList, listNodesError := d.client.ListNodes()
-
-		if listNodesError != nil {
-			response.Diagnostics.AddError("Failed to list nodes in proxmox cluster", listNodesError.Error())
-			return
-		}
-
-		found := false
-		for _, node := range nodeList.Data {
-
-			tflog.Debug(ctx, fmt.Sprintf("Node name is %s", node.Node))
-
-			vmResponse, searchVmError := d.client.GetVmById(node.Node, plan.VmId.ValueString())
-
-			if searchVmError != nil && !strings.Contains(searchVmError.Error(), fmt.Sprintf("500 Configuration file 'nodes/%s/qemu-server/%s.conf' does not exist", node.Node, plan.VmId.ValueString())) {
-				response.Diagnostics.AddError("Failed to search for node that VM lives on", searchVmError.Error())
-				return
-			}
-			if searchVmError == nil {
-				found = true
-				plan.NodeName = types.StringValue(node.Node)
-				plan = updateVmModelFromResponse(plan, *vmResponse, &ctx)
-				break
-			}
-
-		}
-
-		if !found {
-			response.Diagnostics.AddError(fmt.Sprintf("Could not find vm for id %s within the cluster", plan.VmId.ValueString()), "not found")
-			return
-		}
-	}
-
-	status, getStatusError := d.client.GetVmStatus(plan.NodeName.ValueString(), plan.VmId.ValueString())
-	if getStatusError != nil {
-		response.Diagnostics.AddError(fmt.Sprintf("Could not get status for VM %s", plan.VmId.ValueString()), getStatusError.Error())
+	if getVmError != nil {
+		response.Diagnostics.AddError("Failed to find requested vm", getVmError.Error())
 		return
 	}
-	plan.PowerState = types.StringValue(status)
-	diags = response.State.Set(ctx, &plan)
+	currentState.VmId = plan.VmId
+	currentState.NodeName = types.StringValue(*nodeName)
+
+	d.vmService.UpdateVmModelFromResponse(&currentState, &plan, qemuResponse)
+	updatePowerStateError := d.vmService.UpdatePowerState(&currentState)
+
+	if updatePowerStateError != nil {
+		response.Diagnostics.AddError("Failed to update VM power state.", updatePowerStateError.Error())
+	}
+
+	diags = response.State.Set(ctx, &currentState)
 	response.Diagnostics.Append(diags...)
 	if response.Diagnostics.HasError() {
 		return
@@ -93,11 +65,15 @@ func (d *qemuDataSource) Read(ctx context.Context, request datasource.ReadReques
 }
 
 // Configure adds the provider configured client to the data source.
-func (d *qemuDataSource) Configure(_ context.Context, req datasource.ConfigureRequest, _ *datasource.ConfigureResponse) {
+func (d *qemuDataSource) Configure(ctx context.Context, req datasource.ConfigureRequest, _ *datasource.ConfigureResponse) {
 	if req.ProviderData == nil {
 		return
 	}
-	d.client = req.ProviderData.(*proxmox_client.Client)
+	proxmoxClient := req.ProviderData.(proxmox_client.ProxmoxClient)
+	proxmoxUtils := services.NewProxmoxUtilService()
+	taskService := services.NewTaskService(proxmoxClient)
+	diskService := vm.NewDiskService(ctx, proxmoxClient, proxmoxUtils, taskService)
+	d.vmService = vm.NewVmService(ctx, proxmoxClient, diskService, proxmoxUtils, taskService)
 }
 
 // Schema defines the schema for the data source.
@@ -119,7 +95,7 @@ func (d *qemuDataSource) Schema(_ context.Context, _ datasource.SchemaRequest, r
 					},
 				},
 			},
-			"disk": schema.ListNestedBlock{
+			"disk": schema.SetNestedBlock{
 				NestedObject: schema.NestedBlockObject{
 					Attributes: map[string]schema.Attribute{
 						"id": schema.Int64Attribute{

@@ -1,4 +1,4 @@
-package proxmox
+package types
 
 import "github.com/hashicorp/terraform-plugin-framework/types"
 
@@ -38,13 +38,46 @@ type VmModel struct {
 	PowerState           types.String         `tfsdk:"power_state"`
 }
 
-type VmNetworkInterface struct {
-	Type       types.String `tfsdk:"type"`
-	MacAddress types.String `tfsdk:"mac_address"`
-	Bridge     types.String `tfsdk:"bridge"`
-	Firewall   types.Bool   `tfsdk:"firewall"`
-	Order      types.Int64  `tfsdk:"order"`
-	Mtu        types.Int64  `tfsdk:"mtu"`
+type QemuResponse struct { //some of the optional fields in the spec will not appear if they do not differ from the default value
+	Data struct {
+		Acpi             int                    `json:"acpi"`
+		AutoStart        int                    `json:"autostart"`
+		Bios             string                 `json:"bios"`
+		CpuLimit         string                 `json:"cpulimit"`
+		HostStartupOrder string                 `json:"startup"`
+		Kvm              int                    `json:"kvm"`
+		Tags             string                 `json:"tags"`
+		Memory           string                 `json:"memory"`
+		Name             string                 `json:"name"`
+		Cpu              string                 `json:"cpu"`
+		OnBoot           int                    `json:"onboot"`
+		Description      string                 `json:"description"`
+		OsType           string                 `json:"ostype"`
+		VmGenId          string                 `json:"vmgenid"`
+		Sockets          int                    `json:"sockets"`
+		Meta             string                 `json:"meta"`
+		ScsiHw           string                 `json:"scsihw"`
+		Agent            string                 `json:"agent"`
+		Boot             string                 `json:"boot"`
+		Cores            int                    `json:"cores"`
+		Numa             int                    `json:"numa"`
+		Nameserver       string                 `json:"nameserver"`
+		CloudInitUpgrade int                    `json:"ciupgrade"`
+		Protection       int                    `json:"protection"`
+		SshKeys          string                 `json:"sshKeys"`
+		CiUser           string                 `json:"ciuser"`
+		OtherFields      map[string]interface{} `json:"-"` //skip this key
+	} `json:"data"`
+}
+
+type VmStatusData struct {
+	Name   string `json:"name"`
+	Agent  int    `json:"agent"`
+	Status string `json:"status"`
+}
+
+type VmStatus struct {
+	Data VmStatusData `json:"data"`
 }
 
 type VmDisk struct {
@@ -63,6 +96,15 @@ type VmDisk struct {
 	Order           types.Int64  `tfsdk:"order"`
 	ImportFrom      types.String `tfsdk:"import_from"`
 	Path            types.String `tfsdk:"import_path"`
+}
+
+type VmNetworkInterface struct {
+	Type       types.String `tfsdk:"type"`
+	MacAddress types.String `tfsdk:"mac_address"`
+	Bridge     types.String `tfsdk:"bridge"`
+	Firewall   types.Bool   `tfsdk:"firewall"`
+	Order      types.Int64  `tfsdk:"order"`
+	Mtu        types.Int64  `tfsdk:"mtu"`
 }
 
 type VmIpConfig struct {

@@ -16,7 +16,7 @@ var (
 )
 
 type sdnZoneDatasource struct {
-	client *proxmox_client.Client
+	client proxmox_client.ProxmoxClient
 }
 
 func NewSdnZoneDatasource() datasource.DataSource {
@@ -54,7 +54,7 @@ func (d *sdnZoneDatasource) Configure(_ context.Context, req datasource.Configur
 	if req.ProviderData == nil {
 		return
 	}
-	d.client = req.ProviderData.(*proxmox_client.Client)
+	d.client = req.ProviderData.(proxmox_client.ProxmoxClient)
 }
 
 func (d *sdnZoneDatasource) Schema(_ context.Context, _ datasource.SchemaRequest, resp *datasource.SchemaResponse) {

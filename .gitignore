@@ -32,3 +32,5 @@ terraform.tfstate.backup
 /.idea/terraform-provider-proxmox.iml
 /.idea/vcs.xml
 dist/
+*_mock.go
+*/*_mock.go

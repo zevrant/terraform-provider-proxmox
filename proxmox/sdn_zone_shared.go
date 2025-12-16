@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
-	"terraform-provider-proxmox/proxmox_client"
+	proxmoxTypes "terraform-provider-proxmox/types"
 
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
@@ -18,7 +18,7 @@ type sdnZone struct {
 	Peers types.List   `tfsdk:"peers"`
 }
 
-func updateSdnZoneFromResponse(zone *sdnZone, tfContext context.Context, response proxmox_client.SdnZoneResponse) {
+func updateSdnZoneFromResponse(zone *sdnZone, tfContext context.Context, response proxmoxTypes.SdnZoneResponse) {
 	nodes, _ := types.ListValueFrom(tfContext, types.StringType, strings.Split(response.Data.Nodes, ","))
 	peers, _ := types.ListValueFrom(tfContext, types.StringType, strings.Split(strings.Trim(response.Data.Peers, " "), ","))
 	zone.Zone = types.StringValue(response.Data.Zone)

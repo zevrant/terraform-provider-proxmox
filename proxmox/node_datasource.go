@@ -17,7 +17,7 @@ var (
 )
 
 type nodeDataSource struct {
-	client *proxmox_client.Client
+	client proxmox_client.ProxmoxClient
 }
 
 type NodeModel struct {
@@ -109,7 +109,7 @@ func (d *nodeDataSource) Configure(_ context.Context, req datasource.ConfigureRe
 	if req.ProviderData == nil {
 		return
 	}
-	d.client = req.ProviderData.(*proxmox_client.Client)
+	d.client = req.ProviderData.(proxmox_client.ProxmoxClient)
 }
 
 // Schema defines the schema for the data source.

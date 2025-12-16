@@ -1,3 +1,3 @@
 output test_vm {
-  value = proxmox_vm.test
+  value = data.proxmox_vm.test
 }

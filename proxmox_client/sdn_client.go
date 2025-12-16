@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"net/http"
 	"net/url"
+	proxmoxTypes "terraform-provider-proxmox/types"
+
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
 func (c *Client) CreateSdnZone(sdnZoneCreationBody url.Values) error {
@@ -18,7 +20,7 @@ func (c *Client) CreateSdnZone(sdnZoneCreationBody url.Values) error {
 		return requestCreationError
 	}
 
-	body, responseError := c.doRequest(request, FORM_URL_ENCODED)
+	body, responseError := c.DoRequest(request, FormUrlEncoded)
 	if responseError != nil {
 		return errors.Join(responseError, errors.New(string(body)))
 	}
@@ -26,7 +28,7 @@ func (c *Client) CreateSdnZone(sdnZoneCreationBody url.Values) error {
 	return nil
 }
 
-func (c *Client) GetSdnZone(zone string) (*SdnZoneResponse, error) {
+func (c *Client) GetSdnZone(zone string) (*proxmoxTypes.SdnZoneResponse, error) {
 
 	request, requestCreationError := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/cluster/sdn/zones/%s", c.HostURL, url.PathEscape(zone)), nil)
 
@@ -34,12 +36,12 @@ func (c *Client) GetSdnZone(zone string) (*SdnZoneResponse, error) {
 		return nil, requestCreationError
 	}
 
-	body, responseError := c.doRequest(request, FORM_URL_ENCODED)
+	body, responseError := c.DoRequest(request, FormUrlEncoded)
 	if responseError != nil {
 		return nil, errors.Join(responseError, errors.New(string(body)))
 	}
 	tflog.Debug(c.Context, string(body))
-	var zoneCreationResponse = SdnZoneResponse{}
+	var zoneCreationResponse = proxmoxTypes.SdnZoneResponse{}
 
 	unmarshallingError := json.Unmarshal(body, &zoneCreationResponse)
 	if unmarshallingError != nil {
@@ -57,7 +59,7 @@ func (c *Client) DeleteSdnZone(zone string) error {
 		return requestCreationError
 	}
 
-	body, responseError := c.doRequest(request, FORM_URL_ENCODED)
+	body, responseError := c.DoRequest(request, FormUrlEncoded)
 	if responseError != nil {
 		return errors.Join(responseError, errors.New(string(body)))
 	}
@@ -73,7 +75,7 @@ func (c *Client) UpdateSdnZone(sdnZoneCreationBody url.Values) error {
 		return requestCreationError
 	}
 
-	body, responseError := c.doRequest(request, FORM_URL_ENCODED)
+	body, responseError := c.DoRequest(request, FormUrlEncoded)
 	if responseError != nil {
 		return errors.Join(responseError, errors.New(string(body)))
 	}

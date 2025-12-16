@@ -3,24 +3,26 @@ package proxmox_client
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"net/http"
 	"net/url"
+	proxmoxTypes "terraform-provider-proxmox/types"
+
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
-func (c *Client) ListNodes() (*NodeListResponse, error) {
+func (c *Client) ListNodes() (*proxmoxTypes.NodeListResponse, error) {
 	request, requestCreationError := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/nodes", c.HostURL), nil)
 	if requestCreationError != nil {
 		return nil, requestCreationError
 	}
 
-	body, responseError := c.doRequest(request, "")
+	body, responseError := c.DoRequest(request, "")
 
 	if responseError != nil {
 		return nil, responseError
 	}
 
-	var nodeList NodeListResponse
+	var nodeList proxmoxTypes.NodeListResponse
 
 	tflog.Debug(c.Context, fmt.Sprintf("Get Nodes Response is %s", string(body)))
 
@@ -32,19 +34,19 @@ func (c *Client) ListNodes() (*NodeListResponse, error) {
 	return &nodeList, nil
 }
 
-func (c *Client) GetNodeNetworkConfig(nodeName string) (*NodeNetworkConfig, error) {
+func (c *Client) GetNodeNetworkConfig(nodeName string) (*proxmoxTypes.NodeNetworkConfig, error) {
 	request, requestCreationError := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/nodes/%s/network", c.HostURL, url.PathEscape(nodeName)), nil)
 	if requestCreationError != nil {
 		return nil, requestCreationError
 	}
 
-	body, responseError := c.doRequest(request, "")
+	body, responseError := c.DoRequest(request, "")
 
 	if responseError != nil {
 		return nil, responseError
 	}
 
-	var nodeList NodeNetworkConfig
+	var nodeList proxmoxTypes.NodeNetworkConfig
 
 	tflog.Debug(c.Context, fmt.Sprintf("Get Nodes Response is %s", string(body)))
 

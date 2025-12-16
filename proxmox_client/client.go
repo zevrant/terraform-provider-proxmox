@@ -4,14 +4,37 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"github.com/hashicorp/terraform-plugin-log/tflog"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
+	proxmoxTypes "terraform-provider-proxmox/types"
 	"time"
+
+	"github.com/hashicorp/terraform-plugin-log/tflog"
 )
 
-const FORM_URL_ENCODED = "application/x-www-form-urlencoded"
+const FormUrlEncoded = "application/x-www-form-urlencoded"
+
+type ProxmoxClient interface {
+	DoRequest(req *http.Request, contentType string) ([]byte, error)
+	DoRequestWithResponseStatus(req *http.Request, expectedResponseStatus int, contentType string) ([]byte, error)
+	GetTaskStatusByUpid(nodeName *string, upid *string) (*proxmoxTypes.TaskStatus, error)
+	UpdateVm(vmCreationBody url.Values, nodeName *string, vmId *string) (*string, error)
+	CreateVm(vmCreationBody url.Values, nodeName string) (*string, error)
+	GetVmById(nodeName *string, vmId *string) (*proxmoxTypes.QemuResponse, error)
+	DeleteVmById(nodeName *string, vmId *string) (*string, error)
+	ResizeVmDisk(diskResizeRequest url.Values, nodeName *string, vmId *string) (*string, error)
+	GetVmStatus(nodeName *string, vmId *string) (string, error)
+	StartVm(nodeName *string, vmId *string) (*string, error)
+	ShutdownVm(nodeName *string, vmId *string) (*string, error)
+	ListNodes() (*proxmoxTypes.NodeListResponse, error)
+	GetNodeNetworkConfig(nodeName string) (*proxmoxTypes.NodeNetworkConfig, error)
+	CreateSdnZone(sdnZoneCreationBody url.Values) error
+	GetSdnZone(zone string) (*proxmoxTypes.SdnZoneResponse, error)
+	DeleteSdnZone(zone string) error
+	UpdateSdnZone(sdnZoneCreationBody url.Values) error
+}
 
 type Client struct {
 	HostURL               string
@@ -28,7 +51,7 @@ type AuthStruct struct {
 }
 
 // NewClient -
-func NewClient(host *string, username *string, password *string, verifyTls *bool, ctx context.Context) *Client {
+func NewClient(host *string, username *string, password *string, verifyTls *bool, ctx context.Context) ProxmoxClient {
 	if host == nil {
 		panic("Host Not Provided!!!!")
 	}
@@ -67,11 +90,11 @@ func NewClient(host *string, username *string, password *string, verifyTls *bool
 	return &c
 }
 
-func (c *Client) doRequest(req *http.Request, contentType string) ([]byte, error) {
-	return c.doRequestWithResponseStatus(req, http.StatusOK, contentType)
+func (c *Client) DoRequest(req *http.Request, contentType string) ([]byte, error) {
+	return c.DoRequestWithResponseStatus(req, http.StatusOK, contentType)
 }
 
-func (c *Client) doRequestWithResponseStatus(req *http.Request, expectedResponseStatus int, contentType string) ([]byte, error) {
+func (c *Client) DoRequestWithResponseStatus(req *http.Request, expectedResponseStatus int, contentType string) ([]byte, error) {
 	tflog.Debug(c.Context, fmt.Sprintf("Making %s request to %s", req.Method, req.URL))
 	req.Header.Set("Authorization", fmt.Sprintf("PVEAPIToken=%s=%s", c.Auth.Username, c.Auth.Password))
 	req.Header.Set("Accept", "application/json")

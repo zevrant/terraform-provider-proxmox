@@ -3,6 +3,10 @@ package proxmox
 import (
 	"context"
 	"fmt"
+	"net/url"
+	"terraform-provider-proxmox/proxmox_client"
+	proxmoxTypes "terraform-provider-proxmox/types"
+
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
@@ -10,8 +14,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"net/url"
-	"terraform-provider-proxmox/proxmox_client"
 )
 
 var (
@@ -26,7 +28,7 @@ func NewSdnZoneResource() resource.Resource {
 
 // sdnZoneResource is the resource implementation.
 type sdnZoneResource struct {
-	client *proxmox_client.Client
+	client proxmox_client.ProxmoxClient
 }
 
 // Configure adds the provider configured client to the resource.
@@ -35,7 +37,7 @@ func (r *sdnZoneResource) Configure(_ context.Context, req resource.ConfigureReq
 		return
 	}
 
-	r.client = req.ProviderData.(*proxmox_client.Client)
+	r.client = req.ProviderData.(proxmox_client.ProxmoxClient)
 }
 
 // Metadata returns the resource type name.
@@ -190,7 +192,7 @@ func (r *sdnZoneResource) Delete(ctx context.Context, request resource.DeleteReq
 
 func (r *sdnZoneResource) ImportState(ctx context.Context, request resource.ImportStateRequest, response *resource.ImportStateResponse) {
 	// Retrieve import ID and save to id attribute
-	var plan VmModel
+	var plan proxmoxTypes.VmModel
 
 	response.State.Set(ctx, plan)
 	resource.ImportStatePassthroughID(ctx, path.Root("vm_id"), request, response)
