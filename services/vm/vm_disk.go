@@ -29,13 +29,14 @@ type DiskService interface {
 	AreTheseDisksTheSame(disk1 proxmoxTypes.VmDisk, disk2 proxmoxTypes.VmDisk) bool
 	ResizeImportedDisks(vmIf *string, nodeName *string, disks []proxmoxTypes.VmDisk) error
 	UpdateDisksWithUserValues(disks []proxmoxTypes.VmDisk, plan *proxmoxTypes.VmModel)
-	CompareVmDisks(current *proxmoxTypes.VmModel, planned *proxmoxTypes.VmModel) ([]proxmoxTypes.VmDisk, []proxmoxTypes.VmDisk, []proxmoxTypes.VmDisk, []proxmoxTypes.VmDisk)
+	CompareVmDisks(current *proxmoxTypes.VmModel, planned *proxmoxTypes.VmModel) *proxmoxTypes.DiskChanges
 	DeleteVmDisk(disk *proxmoxTypes.VmDisk, nodeName *string, vmId *string) error
 	AddVmDisks(disks []proxmoxTypes.VmDisk, nodeName *string, vmId *string) error
 	ResizeDisk(disk *proxmoxTypes.VmDisk, nodeName *string, vmId *string) error
 	DeleteVmDisks(disks []proxmoxTypes.VmDisk, nodeName *string, vmId *string) error
 	UpdateVmDisks(toBeUpdated []proxmoxTypes.VmDisk, nodeName *string, vmId *string) error
 	ResizeVmDisks(disks []proxmoxTypes.VmDisk, nodeName *string, vmId *string) error
+	MoveDiskStorage(migrationMapping map[proxmoxTypes.VmDisk]proxmoxTypes.VmDisk, nodeName *string, vmId *string) error
 }
 
 type DiskServiceImpl struct {
@@ -317,11 +318,12 @@ func (diskService *DiskServiceImpl) UpdateDisksWithUserValues(disks []proxmoxTyp
 	}
 }
 
-func (diskService *DiskServiceImpl) CompareVmDisks(existing *proxmoxTypes.VmModel, planned *proxmoxTypes.VmModel) ([]proxmoxTypes.VmDisk, []proxmoxTypes.VmDisk, []proxmoxTypes.VmDisk, []proxmoxTypes.VmDisk) {
+func (diskService *DiskServiceImpl) CompareVmDisks(existing *proxmoxTypes.VmModel, planned *proxmoxTypes.VmModel) *proxmoxTypes.DiskChanges {
 	var toBeAdded []proxmoxTypes.VmDisk
 	var toBeRemoved []proxmoxTypes.VmDisk
 	var toBeUpdated []proxmoxTypes.VmDisk
 	var toBeResized []proxmoxTypes.VmDisk
+	var toBeMigrated map[proxmoxTypes.VmDisk]proxmoxTypes.VmDisk = make(map[proxmoxTypes.VmDisk]proxmoxTypes.VmDisk)
 
 	for i, _ := range existing.Disks {
 		plannedIndex := -1
@@ -341,7 +343,6 @@ func (diskService *DiskServiceImpl) CompareVmDisks(existing *proxmoxTypes.VmMode
 
 		isEqual := existingDisk.ImportFrom.ValueString() == plannedDisk.ImportFrom.ValueString()
 		isEqual = isEqual && existingDisk.Path.ValueString() == plannedDisk.Path.ValueString()
-		isEqual = isEqual && existingDisk.StorageLocation.ValueString() == plannedDisk.StorageLocation.ValueString()
 		isEqual = isEqual && existingDisk.AsyncIo.ValueString() == plannedDisk.AsyncIo.ValueString()
 		isEqual = isEqual && existingDisk.BusType.ValueString() == plannedDisk.BusType.ValueString()
 		isEqual = isEqual && existingDisk.IoThread.ValueBool() == plannedDisk.IoThread.ValueBool()
@@ -361,13 +362,25 @@ func (diskService *DiskServiceImpl) CompareVmDisks(existing *proxmoxTypes.VmMode
 			toBeResized = append(toBeResized, planned.Disks[i])
 		}
 
+		if existingDisk.StorageLocation.ValueString() != plannedDisk.StorageLocation.ValueString() {
+			toBeMigrated[existingDisk] = plannedDisk
+		}
+
 	}
 	for i, _ := range planned.Disks {
 		if diskService.FindDiskIndex(existing.Disks, planned.Disks[i]) == -1 {
 			toBeAdded = append(toBeAdded, planned.Disks[i])
 		}
 	}
-	return toBeAdded, toBeUpdated, toBeRemoved, toBeResized
+
+	diskChanges := proxmoxTypes.DiskChanges{
+		ToBeAdded:    toBeAdded,
+		ToBeUpdated:  toBeUpdated,
+		ToBeRemove:   toBeRemoved,
+		ToBeResized:  toBeResized,
+		ToBeMigrated: toBeMigrated,
+	}
+	return &diskChanges
 }
 
 func (diskService *DiskServiceImpl) DeleteVmDisk(disk *proxmoxTypes.VmDisk, nodeName *string, vmId *string) error {
@@ -496,6 +509,24 @@ func (diskService *DiskServiceImpl) ResizeVmDisks(disks []proxmoxTypes.VmDisk, n
 		resizeDiskError := diskService.ResizeDisk(&disk, nodeName, vmId)
 		if resizeDiskError != nil {
 			return resizeDiskError
+		}
+	}
+	return nil
+}
+
+func (diskService *DiskServiceImpl) MoveDiskStorage(migrationMapping map[proxmoxTypes.VmDisk]proxmoxTypes.VmDisk, nodeName *string, vmId *string) error {
+	for key, value := range migrationMapping {
+		diskName := fmt.Sprintf("%s%d", key.BusType.ValueString(), key.Order.ValueInt64())
+		upid, moveVmDiskError := diskService.proxmoxClient.MoveVmDisk(&diskName, nodeName, vmId, value.StorageLocation.ValueStringPointer())
+
+		if moveVmDiskError != nil {
+			return moveVmDiskError
+		}
+
+		taskCompletionError := diskService.taskService.WaitForTaskCompletion(nodeName, upid)
+
+		if taskCompletionError != nil {
+			return taskCompletionError
 		}
 	}
 	return nil

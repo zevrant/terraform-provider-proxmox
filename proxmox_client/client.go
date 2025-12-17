@@ -34,6 +34,7 @@ type ProxmoxClient interface {
 	GetSdnZone(zone string) (*proxmoxTypes.SdnZoneResponse, error)
 	DeleteSdnZone(zone string) error
 	UpdateSdnZone(sdnZoneCreationBody url.Values) error
+	MoveVmDisk(diskName *string, nodeName *string, vmId *string, newStorageName *string) (*string, error)
 }
 
 type Client struct {

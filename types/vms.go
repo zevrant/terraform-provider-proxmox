@@ -112,3 +112,11 @@ type VmIpConfig struct {
 	Gateway   types.String `tfsdk:"gateway"`
 	Order     types.Int64  `tfsdk:"order"`
 }
+
+type DiskChanges struct {
+	ToBeAdded    []VmDisk
+	ToBeUpdated  []VmDisk
+	ToBeRemove   []VmDisk
+	ToBeResized  []VmDisk
+	ToBeMigrated map[VmDisk]VmDisk
+}

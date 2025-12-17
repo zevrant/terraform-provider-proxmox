@@ -434,9 +434,22 @@ func (r *vmResource) Update(ctx context.Context, request resource.UpdateRequest,
 		return
 	}
 
-	toBeAdded, toBeUpdated, toBeRemoved, toBeResized := r.diskService.CompareVmDisks(&state, &plan)
+	diskChanges := r.diskService.CompareVmDisks(&state, &plan)
 
-	if len(toBeAdded)+len(toBeUpdated)+len(toBeRemoved)+len(toBeResized) > 0 {
+	var toBeAdded, toBeUpdated, toBeRemoved, toBeResized []proxmoxTypes.VmDisk
+	toBeAdded = diskChanges.ToBeAdded
+	toBeUpdated = diskChanges.ToBeUpdated
+	toBeResized = diskChanges.ToBeResized
+	toBeRemoved = diskChanges.ToBeRemove
+	toBeMigrated := diskChanges.ToBeMigrated
+
+	migrationCount := 0
+	for key, _ := range toBeMigrated {
+		key.StorageLocation.ValueStringPointer()
+		migrationCount += 1
+	}
+
+	if len(toBeAdded)+len(toBeUpdated)+len(toBeRemoved)+len(toBeResized)+migrationCount > 0 {
 		tflog.Info(ctx, "Shutting down VM in order to provision disk changes")
 		shutdownError := r.vmService.ShutdownVm(state.NodeName.ValueStringPointer(), state.VmId.ValueStringPointer())
 		if shutdownError != nil {
@@ -445,6 +458,13 @@ func (r *vmResource) Update(ctx context.Context, request resource.UpdateRequest,
 			response.Diagnostics.Append(response.State.Set(ctx, &current)...)
 			return
 		}
+	}
+	moveDiskError := r.diskService.MoveDiskStorage(toBeMigrated, state.NodeName.ValueStringPointer(), state.VmId.ValueStringPointer())
+
+	if moveDiskError != nil {
+		response.Diagnostics.AddError("Failed to move vm disk", moveDiskError.Error())
+		response.Diagnostics.Append(response.State.Set(ctx, &current)...)
+		return
 	}
 
 	tflog.Info(ctx, fmt.Sprintf("There are %d disks to remove", len(toBeRemoved)))

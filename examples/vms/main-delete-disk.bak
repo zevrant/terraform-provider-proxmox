@@ -74,7 +74,7 @@ resource proxmox_vm test {
 
   disk {
     bus_type = "scsi"
-    storage_location = "local-zfs"
+    storage_location = "plex"
     size = "51G"
     order = 2
     # import_from = "local"
