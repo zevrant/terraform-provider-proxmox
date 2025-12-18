@@ -375,24 +375,24 @@ func (r *vmResource) Create(ctx context.Context, request resource.CreateRequest,
 // Read refreshes the Terraform state with the latest data.
 func (r *vmResource) Read(ctx context.Context, request resource.ReadRequest, response *resource.ReadResponse) {
 
-	var plan proxmoxTypes.VmModel
+	var state proxmoxTypes.VmModel
 
-	diags := request.State.Get(ctx, &plan)
+	diags := request.State.Get(ctx, &state)
 	response.Diagnostics.Append(diags...)
-	tflog.Debug(ctx, fmt.Sprintf("Node name is %s", plan.NodeName.ValueString()))
+	tflog.Debug(ctx, fmt.Sprintf("Node name is %s", state.NodeName.ValueString()))
 
-	var currentState = plan
+	var currentState = state
 
-	qemuResponse, nodeName, getVmError := r.vmService.GetVm(plan.NodeName.ValueStringPointer(), plan.VmId.ValueStringPointer())
+	qemuResponse, nodeName, getVmError := r.vmService.GetVm(state.NodeName.ValueStringPointer(), state.VmId.ValueStringPointer())
 
 	if getVmError != nil {
 		response.Diagnostics.AddError("Failed to find requested vm", getVmError.Error())
 		return
 	}
-	currentState.VmId = plan.VmId
+	currentState.VmId = state.VmId
 	currentState.NodeName = types.StringValue(*nodeName)
 
-	r.vmService.UpdateVmModelFromResponse(&currentState, &plan, qemuResponse)
+	r.vmService.UpdateVmModelFromResponse(&currentState, &state, qemuResponse)
 	updatePowerStateError := r.vmService.UpdatePowerState(&currentState)
 
 	if updatePowerStateError != nil {
@@ -427,7 +427,7 @@ func (r *vmResource) Update(ctx context.Context, request resource.UpdateRequest,
 
 	r.vmService.UpdateVmModelFromResponse(&current, &plan, qemuResponse)
 
-	updateVmError := r.vmService.UpdateVm(&plan)
+	updateVmError := r.vmService.UpdateVm(&plan, state.NodeName.ValueStringPointer(), state.VmId.ValueStringPointer())
 
 	if updateVmError != nil {
 		response.Diagnostics.AddError("Failed to update VM", updateVmError.Error())
@@ -503,6 +503,15 @@ func (r *vmResource) Update(ctx context.Context, request resource.UpdateRequest,
 		response.Diagnostics.AddError("Failed to resize VM Disks", resizeDisksError.Error())
 		response.Diagnostics.Append(response.State.Set(ctx, &current)...)
 		return
+	}
+
+	if state.NodeName.ValueString() != plan.NodeName.ValueString() {
+		migrationError := r.vmService.MigrateVm(state.NodeName.ValueStringPointer(), plan.NodeName.ValueStringPointer(), state.VmId.ValueStringPointer())
+		if migrationError != nil {
+			response.Diagnostics.AddError("Failed to migrate VM", migrationError.Error())
+			response.Diagnostics.Append(response.State.Set(ctx, &current)...)
+			return
+		}
 	}
 
 	qemuResponse, _, getVmError = r.vmService.GetVm(plan.NodeName.ValueStringPointer(), plan.VmId.ValueStringPointer())

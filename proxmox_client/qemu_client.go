@@ -246,8 +246,6 @@ func (c *Client) ShutdownVm(nodeName *string, vmId *string) (*string, error) {
 func (c *Client) MoveVmDisk(diskName *string, nodeName *string, vmId *string, newStorageName *string) (*string, error) {
 	params := url.Values{}
 	params.Add("storage", *newStorageName)
-	//TODO: for some reason this is empty when ran
-	// erro message follows │ status: 400 Parameter verification failed., body: {"message":"Parameter verification failed.\n","data":null,"errors":{"disk":"property is missing and it is not optional"}}
 	params.Add("disk", *diskName)
 	request, requestCreationError := http.NewRequest(http.MethodPost, fmt.Sprintf("%s/nodes/%s/qemu/%s/move_disk", c.HostURL, *nodeName, *vmId), bytes.NewBufferString(params.Encode()))
 
@@ -268,6 +266,34 @@ func (c *Client) MoveVmDisk(diskName *string, nodeName *string, vmId *string, ne
 
 	if unmarshallingError != nil {
 		tflog.Error(c.Context, fmt.Sprintf("Failed to unmarshal migrate vm disk response: %s", unmarshallingError.Error()))
+		return nil, unmarshallingError
+	}
+
+	return &vmStatus.Upid, nil
+}
+
+func (c *Client) MigrateVm(currentNode *string, newNode *string, vmId *string) (*string, error) {
+	params := url.Values{}
+	params.Add("target", *newNode)
+	request, requestCreationError := http.NewRequest(http.MethodPost, fmt.Sprintf("%s/nodes/%s/qemu/%s/migrate", c.HostURL, *currentNode, *vmId), bytes.NewBufferString(params.Encode()))
+
+	if requestCreationError != nil {
+		tflog.Error(c.Context, fmt.Sprintf("Failed to create migrate vm http request: %s", requestCreationError.Error()))
+		return nil, requestCreationError
+	}
+
+	body, responseError := c.DoRequest(request, FormUrlEncoded)
+
+	if responseError != nil {
+		tflog.Error(c.Context, fmt.Sprintf("Failed to migrate VM %s, on node %s: %s", *vmId, *currentNode, responseError.Error()))
+		return nil, responseError
+	}
+
+	var vmStatus = proxmoxTypes.TaskCreationResponse{}
+	unmarshallingError := json.Unmarshal(body, &vmStatus)
+
+	if unmarshallingError != nil {
+		tflog.Error(c.Context, fmt.Sprintf("Failed to unmarshal migrate vm response: %s", unmarshallingError.Error()))
 		return nil, unmarshallingError
 	}
 

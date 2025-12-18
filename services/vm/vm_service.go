@@ -33,7 +33,8 @@ type VmService interface {
 	CreateVm(plan *proxmoxTypes.VmModel) error
 	MatchVmPowerState(plan *proxmoxTypes.VmModel, currentState *proxmoxTypes.VmModel) error
 	DeleteVm(nodeName *string, vmId *string) error
-	UpdateVm(plan *proxmoxTypes.VmModel) error
+	UpdateVm(plan *proxmoxTypes.VmModel, nodeName *string, vmId *string) error
+	MigrateVm(currentNode *string, newNode *string, vmId *string) error
 }
 
 type VmServiceImpl struct {
@@ -473,20 +474,34 @@ func (vmService *VmServiceImpl) DeleteVm(nodeName *string, vmId *string) error {
 	return nil
 }
 
-func (vmService *VmServiceImpl) UpdateVm(plan *proxmoxTypes.VmModel) error {
+func (vmService *VmServiceImpl) UpdateVm(plan *proxmoxTypes.VmModel, nodeName *string, vmId *string) error {
 	qemuVmCreationRequest := vmService.CreateVmRequest(plan, false, false)
 
-	upid, updateVmError := vmService.proxmoxClient.UpdateVm(qemuVmCreationRequest, plan.NodeName.ValueStringPointer(), plan.VmId.ValueStringPointer())
+	upid, updateVmError := vmService.proxmoxClient.UpdateVm(qemuVmCreationRequest, nodeName, vmId)
 
 	if updateVmError != nil {
 		return updateVmError
 	}
 
-	waitForTaskCompletionError := vmService.taskService.WaitForTaskCompletion(plan.NodeName.ValueStringPointer(), upid)
+	waitForTaskCompletionError := vmService.taskService.WaitForTaskCompletion(nodeName, upid)
 
 	if waitForTaskCompletionError != nil {
 		return waitForTaskCompletionError
 	}
 
+	return nil
+}
+
+func (vmService *VmServiceImpl) MigrateVm(currentNode *string, newNode *string, vmId *string) error {
+	upid, migrateVmError := vmService.proxmoxClient.MigrateVm(currentNode, newNode, vmId)
+	if migrateVmError != nil {
+		return migrateVmError
+	}
+
+	waitForTaskError := vmService.taskService.WaitForTaskCompletion(currentNode, upid)
+
+	if waitForTaskError != nil {
+		return waitForTaskError
+	}
 	return nil
 }

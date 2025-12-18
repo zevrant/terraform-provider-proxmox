@@ -1,0 +1,44 @@
+resource proxmox_vm test {
+  name = "terraform-test-vm"
+  qemu_agent_enabled = true
+  cores = "2"
+  memory = "4096"
+  os_type = "l26"
+  description = "terraform testing vm"
+  node_name = "proxmox-03"
+  vm_id = "9999"
+  cpu_type = "host"
+  boot_order = ["scsi0"]
+  host_startup_order = 1
+  protection = false
+  nameserver = "10.1.0.8"
+  start_on_boot = true
+  default_user = "zevrant"
+  cloud_init_storage_name = "exosDisks"
+  power_state = "stopped"
+  ssh_keys = [
+    "ecdsa-sha2-nistp384 AAAAE2VjZHNhLXNoYTItbmlzdHAzODQAAAAIbmlzdHAzODQAAABhBLtOxtriPtNmisKkmfHfCByaTYCHRsDHyzQAi0yL6LUeKybjYExfR6N0xBMcIj6M/b5U3aafjKayX4nMvV7s7/vcrpBfW+WvxOCBWTlhKGNpUmAS9ApFDn51/FTuRgB/YA=="
+  ]
+  ip_config {
+    ip_address = "10.1.0.100/24"
+    gateway = "10.1.0.1"
+    order = 0
+  }
+
+  disk {
+    bus_type = "scsi"
+    storage_location = "local-zfs"
+    size = "1G"
+    order = 0
+  }
+
+  network_interface {
+    mac_address = "1a:2b:3c:4e:5f:61"
+    bridge = "shared"
+    firewall = true
+    order = 0
+    mtu = 1412
+  }
+
+
+}
