@@ -33,6 +33,7 @@ func (p *proxmoxProvider) DataSources(_ context.Context) []func() datasource.Dat
 		NewSdnZoneDatasource,
 		NewNodeDataSource,
 		NewHealthCheckSystemdDatasource,
+		NewQemuImage,
 	}
 }
 

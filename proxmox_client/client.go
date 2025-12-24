@@ -36,6 +36,8 @@ type ProxmoxClient interface {
 	UpdateSdnZone(sdnZoneCreationBody url.Values) error
 	MoveVmDisk(diskName *string, nodeName *string, vmId *string, newStorageName *string) (*string, error)
 	MigrateVm(currentNode *string, newNode *string, vmId *string) (*string, error)
+	ListStorageDestinations(nodeName *string) (*proxmoxTypes.NodeStorageResponse, error)
+	ListStorageContent(nodeName *string, storageName *string) (*proxmoxTypes.QemuImageResponse, error)
 }
 
 type Client struct {
